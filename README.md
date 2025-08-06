@@ -17,7 +17,7 @@ Python Package: https://pypi.org/project/VirtuGhan/
 
 virtughan-qgis-plugin/
 │
-├── .venv/                    # Virtual environment
+├── venv/                    # Virtual environment
 ├── virtughan\_qgis/           # Main plugin package
 │   ├── tiler/
 │   ├── engine/
@@ -49,15 +49,15 @@ cd virtughan-qgis-plugin
 #### On Linux/macOS:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 ```
 
 #### On Windows:
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\activate
+python -m venv venv
+venv\Scripts\activate
 ```
 
 ### 3. Install Dependencies
@@ -80,7 +80,7 @@ Navigate to the test module and run the logic:
 
 ```bash
 cd virtughan_qgis/tiler
-python tiler_logic.py
+python tiler_logic_test.py
 ```
 
 ### Expected Output

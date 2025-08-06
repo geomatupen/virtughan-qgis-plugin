@@ -1,1 +1,0 @@
-"""morecantile CLI."""
