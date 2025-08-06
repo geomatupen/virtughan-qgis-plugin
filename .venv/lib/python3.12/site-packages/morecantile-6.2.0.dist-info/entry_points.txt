@@ -1,0 +1,3 @@
+[console_scripts]
+morecantile=morecantile.scripts.cli:cli
+
