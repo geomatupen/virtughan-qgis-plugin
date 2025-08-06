@@ -1,0 +1,3 @@
+[submodule "virtughan_core"]
+	path = virtughan_core
+	url = https://github.com/kshitijrajsharma/virtughan.git
