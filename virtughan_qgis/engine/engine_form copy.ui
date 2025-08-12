@@ -6,7 +6,6 @@
    <string>VirtuGhan • Engine</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_root">
-
    <!-- Header -->
    <item>
     <layout class="QHBoxLayout" name="headerLayout">
@@ -43,14 +42,17 @@
      <widget class="QWidget" name="tabBasics">
       <attribute name="title"><string>Basics</string></attribute>
       <layout class="QVBoxLayout" name="basicsLayout" stretch="0,0,0,0,1">
-
-       <!-- Common Parameters (host only; real fields come from CommonParamsWidget) -->
+       <!-- Common parameters placeholder -->
        <item>
         <widget class="QGroupBox" name="groupCommon">
          <property name="title"><string>Common Parameters</string></property>
          <layout class="QVBoxLayout" name="layoutCommon">
           <item>
-           <widget class="QWidget" name="commonParamsContainer"/>
+           <widget class="QWidget" name="commonParamsContainer">
+            <property name="minimumSize">
+             <size><width>0</width><height>120</height></size>
+            </property>
+           </widget>
           </item>
          </layout>
         </widget>
@@ -61,46 +63,23 @@
         <widget class="QGroupBox" name="groupAOI">
          <property name="title"><string>Area of Interest</string></property>
          <layout class="QGridLayout" name="gridAOI">
-
-          <item row="0" column="0">
-           <widget class="QLabel" name="labelAOIMode">
-            <property name="text"><string>AOI mode</string></property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QComboBox" name="aoiModeCombo">
-            <item><property name="text"><string>Map extent</string></property></item>
-            <item><property name="text"><string>Draw polygon</string></property></item>
-           </widget>
-          </item>
-
-          <item row="0" column="2">
-           <widget class="QPushButton" name="aoiUseCanvasButton">
-            <property name="text"><string>Use Canvas Extent</string></property>
-            <property name="toolTip"><string>Capture current map canvas extent</string></property>
+          <item row="0" column="0" colspan="3">
+           <widget class="QLabel" name="labelAOIHint">
+            <property name="text"><string>Use the current map canvas extent as AOI.</string></property>
            </widget>
           </item>
           <item row="0" column="3">
-           <widget class="QPushButton" name="aoiStartDrawButton">
-            <property name="text"><string>Draw AOI</string></property>
-            <property name="toolTip"><string>Draw polygon on map (right-click to finish)</string></property>
+           <widget class="QPushButton" name="aoiButton">
+            <property name="text"><string>Use Canvas Extent</string></property>
+            <property name="toolTip"><string>Capture canvas extent as AOI</string></property>
            </widget>
           </item>
-
-          <item row="0" column="4">
-           <widget class="QPushButton" name="aoiClearButton">
-            <property name="text"><string>Clear</string></property>
-            <property name="toolTip"><string>Clear current AOI</string></property>
-           </widget>
-          </item>
-
-          <item row="1" column="0" colspan="5">
+          <item row="1" column="0" colspan="4">
            <widget class="QLabel" name="aoiPreviewLabel">
             <property name="text"><string>&lt;i&gt;AOI: not set yet&lt;/i&gt;</string></property>
-            <property name="toolTip"><string>Preview (xmin, ymin, xmax, ymax)</string></property>
+            <property name="toolTip"><string>Preview of (xmin, ymin, xmax, ymax)</string></property>
            </widget>
           </item>
-
          </layout>
         </widget>
        </item>
@@ -161,7 +140,7 @@
           <item row="0" column="2">
            <widget class="QLabel" name="labelOut"><property name="text"><string>Output folder</string></property></widget>
           </item>
-          <item row="0" column="3" colspan="2">
+          <item row="0" column="3">
            <layout class="QHBoxLayout" name="outLayout">
             <item>
              <widget class="QLineEdit" name="outputPathEdit">
@@ -230,11 +209,10 @@
          </layout>
         </widget>
        </item>
-
       </layout>
      </widget>
 
-     <!-- Advanced tab (placeholder) -->
+     <!-- Advanced tab placeholder -->
      <widget class="QWidget" name="tabAdvanced">
       <attribute name="title"><string>Advanced</string></attribute>
       <layout class="QVBoxLayout" name="advancedLayout">
@@ -258,7 +236,6 @@
 
     </widget>
    </item>
-
   </layout>
  </widget>
  <resources/>
