@@ -1,14 +1,16 @@
 # virtughan_qgis/engine/engine_logic.py
-import os, uuid
+import os, uuid, io, traceback
+from contextlib import redirect_stdout, redirect_stderr
+
+from qgis.PyQt.QtCore import QDate, Qt
 from qgis.core import (
     QgsProcessingAlgorithm, QgsProcessingParameterExtent,
     QgsProcessingParameterNumber, QgsProcessingParameterString, QgsProcessingParameterBoolean,
     QgsProcessingParameterEnum, QgsProcessingParameterFolderDestination, QgsProcessingUtils,
-    QgsProcessingException, QgsApplication, Qgis, QgsMessageLog, QgsTask
+    QgsProcessingException, QgsProject, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
 )
-from qgis.PyQt.QtCore import QDate, Qt
 
-# --- Date parameter compat (QGIS 3.34 doesn't have QgsProcessingParameterDate)
+# Optional Date parameter (QGIS 3.34 compatibility)
 try:
     from qgis.core import QgsProcessingParameterDate  # type: ignore
     HAVE_DATE_PARAM = True
@@ -16,8 +18,7 @@ except Exception:
     QgsProcessingParameterDate = None  # type: ignore
     HAVE_DATE_PARAM = False
 
-
-# Import VCubeProcessor from installed 'virtughan' (module 'vcube')
+# Backend
 VCUBE_IMPORT_ERROR = None
 try:
     from vcube.engine import VCubeProcessor
@@ -27,94 +28,100 @@ except Exception as e:
 
 
 def _coerce_to_qdate(val) -> QDate:
-    """Accept QDate or ISO string 'YYYY-MM-DD'; return QDate (may be invalid)."""
     if isinstance(val, QDate):
         return val
     s = "" if val is None else str(val).strip()
     if not s:
         return QDate()
-    qd = QDate.fromString(s, Qt.ISODate)  # expects YYYY-MM-DD
-    return qd
+    return QDate.fromString(s, Qt.ISODate)  # YYYY-MM-DD
 
 
-class _VCubeTask(QgsTask):
-    def __init__(self, desc, params):
-        super().__init__(desc, QgsTask.CanCancel)
-        self.params = params
-        self.exc = None
+def _extent_to_wgs84_bbox(extent, src_crs):
+    """Transform a QgsRectangle in src_crs to EPSG:4326 bbox [minLon,minLat,maxLon,maxLat]."""
+    wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
+    if not src_crs or not src_crs.isValid() or src_crs == wgs84:
+        bbox = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
+    else:
+        xform = QgsCoordinateTransform(src_crs, wgs84, QgsProject.instance())
+        ll = xform.transform(extent.xMinimum(), extent.yMinimum())
+        ur = xform.transform(extent.xMaximum(), extent.yMaximum())
+        bbox = [min(ll.x(), ur.x()), min(ll.y(), ur.y()), max(ll.x(), ur.x()), max(ll.y(), ur.y())]
+    if (abs(bbox[0]) > 180 or abs(bbox[2]) > 180 or abs(bbox[1]) > 90 or abs(bbox[3]) > 90):
+        raise QgsProcessingException(f"Converted bbox is not valid lon/lat: {bbox}")
+    return bbox
 
-    def run(self):
+
+class _FeedbackTee(io.TextIOBase):
+    """
+    Tee text stream to a file + Processing feedback.
+    Buffers until newline so feedback gets whole lines.
+    """
+    def __init__(self, file_obj, feedback):
+        self.file = file_obj
+        self.feedback = feedback
+        self._buf = ""
+
+    def write(self, s):
+        if not s:
+            return 0
+        # write to file immediately
+        self.file.write(s)
+        self.file.flush()
+        # buffer for feedback
+        self._buf += s
+        while "\n" in self._buf:
+            line, self._buf = self._buf.split("\n", 1)
+            if line.strip():
+                try:
+                    self.feedback.pushInfo(line)
+                except Exception:
+                    pass
+        return len(s)
+
+    def flush(self):
         try:
-            log_path = os.path.join(self.params["output_dir"], "runtime.log")
-            with open(log_path, "a", encoding="utf-8") as logf:
-                proc = VCubeProcessor(
-                    bbox=self.params["bbox"],
-                    start_date=self.params["start_date"],
-                    end_date=self.params["end_date"],
-                    cloud_cover=self.params["cloud_cover"],
-                    formula=self.params["formula"],
-                    band1=self.params["band1"],
-                    band2=self.params["band2"],
-                    operation=self.params["operation"],
-                    timeseries=self.params["timeseries"],
-                    output_dir=self.params["output_dir"],
-                    log_file=logf,
-                    cmap=self.params.get("cmap", "RdYlGn"),
-                    workers=self.params["workers"],
-                    smart_filter=self.params.get("smart_filter", False),
-                )
-                proc.compute()
-            return True
-        except Exception as e:
-            self.exc = e
-            return False
-
-    def finished(self, ok):
-        if not ok or self.exc:
-            QgsMessageLog.logMessage(str(self.exc), "VirtuGhan", Qgis.Critical)
-        else:
-            QgsMessageLog.logMessage("VirtuGhan Engine finished.", "VirtuGhan", Qgis.Info)
+            self.file.flush()
+        except Exception:
+            pass
 
 
 class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
     def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterExtent("EXTENT", "Area of interest"))
+        self.addParameter(QgsProcessingParameterExtent("EXTENT", "Area of interest (any CRS)"))
 
         if HAVE_DATE_PARAM:
-            self.addParameter(QgsProcessingParameterDate(
-                "START_DATE", "Start date", defaultValue=QDate.currentDate().addYears(-1)
-            ))
-            self.addParameter(QgsProcessingParameterDate(
-                "END_DATE", "End date", defaultValue=QDate.currentDate()
-            ))
+            self.addParameter(QgsProcessingParameterDate("START_DATE", "Start date",
+                             defaultValue=QDate.currentDate().addYears(-1)))
+            self.addParameter(QgsProcessingParameterDate("END_DATE", "End date",
+                             defaultValue=QDate.currentDate()))
         else:
-            # Fallback: users type YYYY-MM-DD (we'll parse it)
             self.addParameter(QgsProcessingParameterString(
-                "START_DATE", "Start date (YYYY-MM-DD)", defaultValue=QDate.currentDate().addYears(-1).toString("yyyy-MM-dd")
-            ))
+                "START_DATE", "Start date (YYYY-MM-DD)",
+                defaultValue=QDate.currentDate().addYears(-1).toString("yyyy-MM-dd")))
             self.addParameter(QgsProcessingParameterString(
-                "END_DATE", "End date (YYYY-MM-DD)", defaultValue=QDate.currentDate().toString("yyyy-MM-dd")
-            ))
+                "END_DATE", "End date (YYYY-MM-DD)",
+                defaultValue=QDate.currentDate().toString("yyyy-MM-dd")))
 
         self.addParameter(QgsProcessingParameterNumber(
             "CLOUD_COVER", "Max cloud cover (%)",
-            type=QgsProcessingParameterNumber.Integer, defaultValue=30
-        ))
-        self.addParameter(QgsProcessingParameterString("FORMULA", "Formula", defaultValue="(band2-band1)/(band2+band1)"))
+            type=QgsProcessingParameterNumber.Integer, defaultValue=30, minValue=0, maxValue=100))
+        self.addParameter(QgsProcessingParameterString("FORMULA", "Formula",
+            defaultValue="(band2-band1)/(band2+band1)"))
         self.addParameter(QgsProcessingParameterString("BAND1", "Band 1", defaultValue="red"))
-        self.addParameter(QgsProcessingParameterString("BAND2", "Band 2 (optional)", defaultValue="nir"))
+        self.addParameter(QgsProcessingParameterString("BAND2", "Band 2 (optional)",
+            defaultValue="nir", optional=True))
         self.addParameter(QgsProcessingParameterEnum(
             "OPERATION", "Aggregation",
-            options=["mean","median","max","min","std","sum","var","none"], defaultValue=1
-        ))
-        self.addParameter(QgsProcessingParameterBoolean("TIMESERIES", "Generate timeseries", defaultValue=True))
-        self.addParameter(QgsProcessingParameterBoolean("SMART_FILTER", "Apply smart filter", defaultValue=False))
+            options=["mean","median","max","min","std","sum","var","none"], defaultValue=7))  # default 'none'
+        self.addParameter(QgsProcessingParameterBoolean(
+            "TIMESERIES", "Generate timeseries (GIF)", defaultValue=False))
+        self.addParameter(QgsProcessingParameterBoolean(
+            "SMART_FILTER", "Apply smart filter", defaultValue=False))
         self.addParameter(QgsProcessingParameterNumber(
-            "WORKERS", "Workers (0=auto)", type=QgsProcessingParameterNumber.Integer, defaultValue=0
-        ))
+            "WORKERS", "Workers (0=auto)",
+            type=QgsProcessingParameterNumber.Integer, defaultValue=1, minValue=0, maxValue=64))
         self.addParameter(QgsProcessingParameterFolderDestination(
-            "OUTPUT_FOLDER", "Output folder (blank = temp)", optional=True
-        ))
+            "OUTPUT_FOLDER", "Output folder (blank = temp)", optional=True))
 
     def name(self): return "virtughan_engine"
     def displayName(self): return "VirtuGhan Engine (VCube)"
@@ -127,32 +134,50 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         if VCUBE_IMPORT_ERROR:
             raise QgsProcessingException(f"VCubeProcessor import failed: {VCUBE_IMPORT_ERROR}")
 
+        # AOI → EPSG:4326
         extent = self.parameterAsExtent(parameters, "EXTENT", context)
-        bbox = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
+        try:
+            src_crs = self.parameterAsExtentCrs(parameters, "EXTENT", context)
+        except Exception:
+            src_crs = QgsProject.instance().crs()
+        bbox = _extent_to_wgs84_bbox(extent, src_crs)
+        feedback.pushInfo(f"AOI (EPSG:4326): {bbox}")
 
-        # Dates: works for both QDate param and string fallback
+        # Dates
         if HAVE_DATE_PARAM:
-            sd_q = self.parameterAsDate(parameters, "START_DATE", context)
-            ed_q = self.parameterAsDate(parameters, "END_DATE", context)
+            sd = self.parameterAsDate(parameters, "START_DATE", context); sd = sd.date() if hasattr(sd, "date") else sd
+            ed = self.parameterAsDate(parameters, "END_DATE", context);   ed = ed.date() if hasattr(ed, "date") else ed
+            sd_q = sd if isinstance(sd, QDate) else _coerce_to_qdate(sd)
+            ed_q = ed if isinstance(ed, QDate) else _coerce_to_qdate(ed)
         else:
             sd_q = _coerce_to_qdate(self.parameterAsString(parameters, "START_DATE", context))
             ed_q = _coerce_to_qdate(self.parameterAsString(parameters, "END_DATE", context))
-
         if not sd_q.isValid() or not ed_q.isValid():
             raise QgsProcessingException("Invalid date. Use YYYY-MM-DD.")
+        if sd_q > ed_q:
+            raise QgsProcessingException("Start date must be before end date.")
+        s = sd_q.toString("yyyy-MM-dd"); e = ed_q.toString("yyyy-MM-dd")
 
-        s = sd_q.toString("yyyy-MM-dd")
-        e = ed_q.toString("yyyy-MM-dd")
+        # Other params
+        cloud = max(0, min(100, int(self.parameterAsDouble(parameters, "CLOUD_COVER", context))))
+        formula = (self.parameterAsString(parameters, "FORMULA", context) or "").strip()
+        band1 = (self.parameterAsString(parameters, "BAND1", context) or "").strip()
+        band2 = (self.parameterAsString(parameters, "BAND2", context) or "").strip() or None
+        if not formula: raise QgsProcessingException("Formula is required.")
+        if not band1:   raise QgsProcessingException("Band 1 is required.")
 
-        cloud = int(self.parameterAsDouble(parameters, "CLOUD_COVER", context))
-        formula = self.parameterAsString(parameters, "FORMULA", context)
-        band1 = self.parameterAsString(parameters, "BAND1", context).strip()
-        band2 = self.parameterAsString(parameters, "BAND2", context).strip() or None
-        op_idx = self.parameterAsEnum(parameters, "OPERATION", context)
         ops = ["mean","median","max","min","std","sum","var","none"]
-        operation = None if ops[op_idx] == "none" else ops[op_idx]
+        op_idx = self.parameterAsEnum(parameters, "OPERATION", context)
+        op_txt = ops[op_idx] if 0 <= op_idx < len(ops) else "none"
+        operation = None if op_txt == "none" else op_txt
+
         ts = self.parameterAsBool(parameters, "TIMESERIES", context)
         smart = self.parameterAsBool(parameters, "SMART_FILTER", context)
+
+        # If timeseries is False, require an operation (like the API)
+        if ts is False and operation is None:
+            raise QgsProcessingException("Operation is required when 'Generate timeseries' is disabled.")
+
         workers = int(self.parameterAsDouble(parameters, "WORKERS", context))
         if workers <= 0:
             try:
@@ -161,19 +186,54 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             except Exception:
                 workers = 1
 
-        out_base = self.parameterAsString(parameters, "OUTPUT_FOLDER", context) or QgsProcessingUtils.tempFolder()
+        # Output dir + log path
+        out_base = (self.parameterAsString(parameters, "OUTPUT_FOLDER", context) or "").strip()
+        if not out_base:
+            out_base = getattr(context, "temporaryFolder", lambda: None)() or QgsProcessingUtils.tempFolder()
         out_dir = os.path.join(out_base, f"virtughan_engine_{uuid.uuid4().hex[:8]}")
         os.makedirs(out_dir, exist_ok=True)
+        log_path = os.path.join(out_dir, "runtime.log")
 
-        params = dict(
-            bbox=bbox, start_date=s, end_date=e, cloud_cover=cloud,
-            formula=formula, band1=band1, band2=band2,
-            operation=operation, timeseries=ts,
-            output_dir=out_dir, smart_filter=smart, workers=workers
-        )
+        # Route GDAL debug into this file too (if vcube/GDAL emits anything)
+        os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
+        os.environ.setdefault("CPL_DEBUG", "ON")
+        os.environ["CPL_LOG"] = log_path
 
         feedback.pushInfo(f"Output: {out_dir}")
-        task = _VCubeTask("VirtuGhan Engine", params)
-        QgsApplication.taskManager().addTask(task)
+        feedback.pushInfo(f"Log file: {log_path}")
+        feedback.pushInfo(f"Params: bbox={bbox}, start={s}, end={e}, cloud={cloud}, "
+                          f"band1={band1}, band2={band2}, op={operation}, "
+                          f"timeseries={ts}, workers={workers}, smart_filter={smart}")
+
+        # Open log & tee stdout/stderr so ANY print/traceback from vcube is captured
+        with open(log_path, "a", encoding="utf-8", buffering=1) as lf:
+            tee = _FeedbackTee(lf, feedback)
+            with redirect_stdout(tee), redirect_stderr(tee):
+                try:
+                    print("Starting compute() …", flush=True)
+                    proc = VCubeProcessor(
+                        bbox=bbox,
+                        start_date=s,
+                        end_date=e,
+                        cloud_cover=cloud,
+                        formula=formula,
+                        band1=band1,
+                        band2=band2,
+                        operation=operation,
+                        timeseries=ts,
+                        output_dir=out_dir,
+                        log_file=lf,       # vcube can also write directly here
+                        cmap="RdYlGn",
+                        workers=workers,
+                        smart_filter=smart,
+                    )
+                    print("[checkpoint] entering VCubeProcessor.compute()", flush=True)
+                    proc.compute()
+                    print("[checkpoint] exited VCubeProcessor.compute()", flush=True)
+                    print("compute() finished.", flush=True)
+                except Exception:
+                    print("[exception]", flush=True)
+                    print(traceback.format_exc(), flush=True)
+                    raise QgsProcessingException("VCubeProcessor.compute() failed – see runtime.log for details.")
 
         return {"OUTPUT": out_dir}

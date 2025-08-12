@@ -1,10 +1,13 @@
 # virtughan_qgis/engine/engine_widget.py
 import os
 import uuid
+import time
+import threading
+import traceback
 from datetime import datetime
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import Qt, QDate
+from qgis.PyQt.QtCore import Qt, QDate, QTimer
 from qgis.PyQt.QtWidgets import (
     QWidget, QDockWidget, QFileDialog, QMessageBox, QVBoxLayout, QFormLayout, QDateEdit,
     QSpinBox, QLineEdit, QPushButton, QProgressBar, QPlainTextEdit, QComboBox, QCheckBox, QLabel
@@ -26,16 +29,16 @@ from qgis.core import (
 )
 from qgis.gui import QgsMapCanvas, QgsMapTool, QgsRubberBand
 
-# ---- Try to import your reusable "Common" widget -----------------------------
+# Optional common widget
 COMMON_IMPORT_ERROR = None
 CommonParamsWidget = None
 try:
-    from ..common.common_widget import CommonParamsWidget  # your reusable widget
+    from ..common.common_widget import CommonParamsWidget
 except Exception as _e:
     COMMON_IMPORT_ERROR = _e
     CommonParamsWidget = None
 
-# ---- Import the engine from the installed 'virtughan' package ----------------
+# Engine backend
 VCUBE_IMPORT_ERROR = None
 VCubeProcessor = None
 try:
@@ -44,7 +47,7 @@ except Exception as _e:
     VCUBE_IMPORT_ERROR = _e
     VCubeProcessor = None
 
-# ---- Load the UI file at runtime --------------------------------------------
+# Load UI
 UI_PATH = os.path.join(os.path.dirname(__file__), "engine_form.ui")
 FORM_CLASS, _ = uic.loadUiType(UI_PATH)
 
@@ -57,9 +60,8 @@ def _log(widget, msg, level=Qgis.Info):
         pass
 
 
-# ---------- AOI / CRS helpers (kept local for now; can be moved to a common module later) ----------
+# AOI / CRS helpers (local; can be factored later)
 def _extent_to_wgs84(iface, extent):
-    """Return [xmin, ymin, xmax, ymax] in EPSG:4326 for the given QgsRectangle extent."""
     if extent is None:
         return None
     canvas = iface.mapCanvas() if iface else None
@@ -76,42 +78,57 @@ def _extent_to_wgs84(iface, extent):
 
 
 def _rect_from_bbox(bbox):
-    """Make a QgsRectangle from [xmin, ymin, xmax, ymax]."""
     return QgsRectangle(bbox[0], bbox[1], bbox[2], bbox[3])
 
 
 def _bbox_looks_projected(b):
-    """Heuristic: true if bbox values exceed lon/lat ranges."""
     if not b:
         return False
     return (abs(b[0]) > 180 or abs(b[2]) > 180 or abs(b[1]) > 90 or abs(b[3]) > 90)
 
 
 class _VCubeTask(QgsTask):
-    def __init__(self, desc, params, on_done=None):
+    """
+    Background task with robust logging:
+      - Echoes params to runtime.log
+      - Wraps compute() to log enter/exit
+      - Heartbeat while compute() runs
+      - Soft timeout notice (does not kill the thread, just logs)
+    """
+    def __init__(self, desc, params, on_done=None, heartbeat_sec=5, soft_timeout_sec=180):
         super().__init__(desc, QgsTask.CanCancel)
         self.params = params
         self.on_done = on_done
         self.exc = None
+        self.heartbeat_sec = heartbeat_sec
+        self.soft_timeout_sec = soft_timeout_sec
 
     def run(self):
         try:
             os.makedirs(self.params["output_dir"], exist_ok=True)
             log_path = os.path.join(self.params["output_dir"], "runtime.log")
+
             with open(log_path, "a", encoding="utf-8") as logf:
-                logf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Starting VCubeProcessor\n")
-                # Echo params for debugging
+                logf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Task started\n")
                 logf.write(
                     "Params: "
-                    f"bbox={self.params['bbox']}, "
-                    f"start={self.params['start_date']}, end={self.params['end_date']}, "
-                    f"cloud={self.params['cloud_cover']}, band1={self.params['band1']}, band2={self.params['band2']}, "
-                    f"op={self.params['operation']}, timeseries={self.params['timeseries']}, "
-                    f"workers={self.params['workers']}, smart_filter={self.params.get('smart_filter')}\n"
+                    f"bbox={self.params.get('bbox')}, "
+                    f"start={self.params.get('start_date')}, end={self.params.get('end_date')}, "
+                    f"cloud={self.params.get('cloud_cover')}, band1={self.params.get('band1')}, band2={self.params.get('band2')}, "
+                    f"op={self.params.get('operation')}, timeseries={self.params.get('timeseries')}, "
+                    f"workers={self.params.get('workers')}, smart_filter={self.params.get('smart_filter')}\n"
                 )
                 logf.flush()
 
-                proc = VCubeProcessor(
+            # Preflight bbox sanity for EPSG:4326
+            b = self.params.get("bbox")
+            if (not b) or (len(b) != 4) or _bbox_looks_projected(b):
+                raise ValueError(f"Bad bbox for EPSG:4326: {b}")
+
+            debug_workers = max(1, int(self.params["workers"]) or 1)
+
+            def build_proc(logf):
+                return VCubeProcessor(
                     bbox=self.params["bbox"],
                     start_date=self.params["start_date"],
                     end_date=self.params["end_date"],
@@ -124,43 +141,111 @@ class _VCubeTask(QgsTask):
                     output_dir=self.params["output_dir"],
                     log_file=logf,
                     cmap=self.params.get("cmap", "RdYlGn"),
-                    workers=self.params["workers"],
+                    workers=debug_workers,
                     smart_filter=self.params.get("smart_filter", False),
                 )
-                proc.compute()
-                logf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Finished\n")
+
+            def run_compute():
+                with open(log_path, "a", encoding="utf-8") as logf:
+                    logf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Starting VCubeProcessor\n")
+                    logf.flush()
+                    proc = build_proc(logf)
+                    try:
+                        orig_compute = getattr(proc, "compute")
+                    except Exception:
+                        logf.write("[error] VCubeProcessor has no 'compute' method\n")
+                        logf.flush()
+                        raise
+
+                    def _wrapped_compute():
+                        with open(log_path, "a", encoding="utf-8") as lf:
+                            lf.write("[checkpoint] entering compute()\n")
+                            lf.flush()
+                        try:
+                            return orig_compute()
+                        finally:
+                            with open(log_path, "a", encoding="utf-8") as lf:
+                                lf.write("[checkpoint] exited compute()\n")
+                                lf.flush()
+
+                    try:
+                        _wrapped_compute()
+                        with open(log_path, "a", encoding="utf-8") as lf:
+                            lf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Finished\n")
+                            lf.flush()
+                    except Exception as e:
+                        with open(log_path, "a", encoding="utf-8") as lf:
+                            lf.write("[exception]\n")
+                            lf.write("".join(traceback.format_exception(e)))
+                            lf.flush()
+                        raise
+
+            exc_holder = {"exc": None}
+            t = threading.Thread(target=lambda: self._thread_wrapper(run_compute, exc_holder), daemon=True)
+            t.start()
+
+            start = time.time()
+            last_hb = 0
+            timed_out_flag = False
+
+            while t.is_alive():
+                if self.isCanceled():
+                    with open(log_path, "a", encoding="utf-8") as lf:
+                        lf.write("[cancel] Task cancellation requested by user.\n")
+                        lf.flush()
+                    break
+
+                now = time.time()
+                if now - last_hb >= self.heartbeat_sec:
+                    with open(log_path, "a", encoding="utf-8") as lf:
+                        elapsed = int(now - start)
+                        lf.write(f"[heartbeat] compute() running… {elapsed}s elapsed\n")
+                        lf.flush()
+                    last_hb = now
+
+                if (not timed_out_flag) and (now - start >= self.soft_timeout_sec):
+                    with open(log_path, "a", encoding="utf-8") as lf:
+                        lf.write(f"[warning] compute() running longer than {self.soft_timeout_sec}s; still waiting…\n")
+                        lf.flush()
+                    timed_out_flag = True
+
+                time.sleep(0.25)
+
+            t.join(timeout=1.0)
+
+            if exc_holder["exc"]:
+                self.exc = exc_holder["exc"]
+                return False
+
             return True
         except Exception as e:
             self.exc = e
-            return False
-
-    def finished(self, ok):
-        if self.on_done:
             try:
-                self.on_done(ok, self.exc)
+                log_path = os.path.join(self.params["output_dir"], "runtime.log")
+                with open(log_path, "a", encoding="utf-8") as logf:
+                    logf.write(f"[fatal] {repr(e)}\n")
+                    logf.write("".join(traceback.format_exception(e)))
+                    logf.flush()
             except Exception:
                 pass
-        if not ok or self.exc:
-            QgsMessageLog.logMessage(str(self.exc), "VirtuGhan", Qgis.Critical)
-        else:
-            QgsMessageLog.logMessage("VirtuGhan Engine finished.", "VirtuGhan", Qgis.Info)
+            return False
+
+    @staticmethod
+    def _thread_wrapper(fn, exc_holder):
+        try:
+            fn()
+        except Exception as e:
+            exc_holder["exc"] = e
 
 
 class _AoiDrawTool(QgsMapTool):
-    """
-    Simple polygon-draw tool:
-      - Left-click to add vertices
-      - Right-click (or double-click) to finish
-      - ESC to cancel
-    Calls `on_finished(bbox)` with [xmin, ymin, xmax, ymax] in the **canvas CRS** or None if cancelled.
-    """
     def __init__(self, canvas: QgsMapCanvas, on_finished):
         super().__init__(canvas)
         self.canvas = canvas
         self.on_finished = on_finished
         self.points = []
         self.rb = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
-        self.rb.setFillColor(self.rb.fillColor())   # use defaults
+        self.rb.setFillColor(self.rb.fillColor())
         self.rb.setStrokeColor(self.rb.strokeColor())
         self.rb.setWidth(2)
 
@@ -174,7 +259,6 @@ class _AoiDrawTool(QgsMapTool):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            # cancel
             self._cleanup()
             if self.on_finished:
                 self.on_finished(None)
@@ -212,13 +296,16 @@ class EngineDockWidget(QDockWidget):
         self.iface = iface
         self.setObjectName("VirtuGhanEngineDock")
 
-        # Inflate UI into a container
         self.ui_root = QWidget(self)
         self._form_owner = FORM_CLASS()
         self._form_owner.setupUi(self.ui_root)
         self.setWidget(self.ui_root)
 
-        # ---- BIND ALL CONTROLS SAFELY VIA findChild ----
+        # log tailer state
+        self._tail_timer = None
+        self._tail_path = None
+        self._tail_pos = 0
+
         f = self.ui_root.findChild
         self.progressBar        = f(QProgressBar, "progressBar")
         self.runButton          = f(QPushButton,   "runButton")
@@ -227,14 +314,12 @@ class EngineDockWidget(QDockWidget):
         self.logText            = f(QPlainTextEdit,"logText")
         self.commonHost         = f(QWidget,       "commonParamsContainer")
 
-        # AOI bits
         self.aoiModeCombo       = f(QComboBox,     "aoiModeCombo")
         self.aoiUseCanvasButton = f(QPushButton,   "aoiUseCanvasButton")
         self.aoiStartDrawButton = f(QPushButton,   "aoiStartDrawButton")
         self.aoiClearButton     = f(QPushButton,   "aoiClearButton")
         self.aoiPreviewLabel    = f(QLabel,        "aoiPreviewLabel")
 
-        # Options / output
         self.opCombo            = f(QComboBox,     "opCombo")
         self.timeseriesCheck    = f(QCheckBox,     "timeseriesCheck")
         self.smartFilterCheck   = f(QCheckBox,     "smartFilterCheck")
@@ -242,7 +327,6 @@ class EngineDockWidget(QDockWidget):
         self.outputPathEdit     = f(QLineEdit,     "outputPathEdit")
         self.outputBrowseButton = f(QPushButton,   "outputBrowseButton")
 
-        # Guard: critical widgets must exist
         critical = {
             "progressBar": self.progressBar, "runButton": self.runButton,
             "resetButton": self.resetButton, "logText": self.logText,
@@ -256,10 +340,8 @@ class EngineDockWidget(QDockWidget):
             raise RuntimeError(f"Engine UI missing widgets: {', '.join(missing)}. "
                                f"Make sure engine_form.ui names match the code.")
 
-        # Initial UI state
         self.progressBar.setVisible(False)
 
-        # Wire buttons
         self.aoiUseCanvasButton.clicked.connect(self._use_canvas_extent)
         self.aoiStartDrawButton.clicked.connect(self._start_draw_aoi)
         self.aoiClearButton.clicked.connect(self._clear_aoi)
@@ -270,19 +352,48 @@ class EngineDockWidget(QDockWidget):
         self.runButton.clicked.connect(self._run_clicked)
         self.helpButton.clicked.connect(self._open_help)
 
-        # Embed common widget
         self._init_common_widget()
 
-        # AOI state
-        self._aoi_bbox = None  # ALWAYS store in EPSG:4326
+        self._aoi_bbox = None  # stored as EPSG:4326
         self._aoi_tool = None
         self._update_aoi_preview()
         self._aoi_mode_changed(self.aoiModeCombo.currentText())
 
-    # ---------- UI helpers ----------
+    # log tailer
+    def _start_log_tailer(self, path: str):
+        if not path:
+            return
+        self._tail_path = path
+        self._tail_pos = 0
+        try:
+            with open(self._tail_path, "r", encoding="utf-8") as f:
+                data = f.read()
+                self._tail_pos = f.tell()
+                if data:
+                    self.logText.appendPlainText(data)
+        except Exception:
+            pass
+        if self._tail_timer is None:
+            self._tail_timer = QTimer(self)
+            self._tail_timer.setInterval(1000)
+            self._tail_timer.timeout.connect(self._poll_log_tail)
+        self._tail_timer.start()
+
+    def _poll_log_tail(self):
+        if not self._tail_path:
+            return
+        try:
+            with open(self._tail_path, "r", encoding="utf-8") as f:
+                f.seek(self._tail_pos)
+                chunk = f.read()
+                self._tail_pos = f.tell()
+                if chunk:
+                    self.logText.appendPlainText(chunk)
+        except Exception:
+            pass
+
     def _init_common_widget(self):
         if CommonParamsWidget is None:
-            # Fallback simple form directly in the host
             fallback = QWidget(self.commonHost)
             lay = QFormLayout(fallback)
 
@@ -312,7 +423,6 @@ class EngineDockWidget(QDockWidget):
             host = self.commonHost
             v = QVBoxLayout(host); v.setContentsMargins(0, 0, 0, 0)
             self._common = CommonParamsWidget(host)
-            # surface GSD mismatch warnings to the user
             self._common.warn_resolution_if_needed(lambda m: QMessageBox.warning(self, "VirtuGhan", m))
             v.addWidget(self._common)
 
@@ -349,22 +459,17 @@ class EngineDockWidget(QDockWidget):
         self.outputPathEdit.clear()
         self.logText.clear()
 
-    # ---------- AOI handling ----------
     def _aoi_mode_changed(self, text: str):
         mode = (text or "").lower()
-        using_extent = "extent" in mode
-        using_draw = "draw" in mode
-        self.aoiUseCanvasButton.setEnabled(using_extent)
-        self.aoiStartDrawButton.setEnabled(using_draw)
+        self.aoiUseCanvasButton.setEnabled("extent" in mode)
+        self.aoiStartDrawButton.setEnabled("draw" in mode)
 
     def _use_canvas_extent(self):
         canvas: QgsMapCanvas = self.iface.mapCanvas()
         if not canvas or not canvas.extent():
             QMessageBox.warning(self, "VirtuGhan", "No map canvas extent available.")
             return
-        e = canvas.extent()
-        # Always convert to WGS84 when storing
-        self._aoi_bbox = _extent_to_wgs84(self.iface, e)
+        self._aoi_bbox = _extent_to_wgs84(self.iface, canvas.extent())
         self._update_aoi_preview()
 
     def _start_draw_aoi(self):
@@ -372,15 +477,12 @@ class EngineDockWidget(QDockWidget):
         if not canvas:
             QMessageBox.warning(self, "VirtuGhan", "Map canvas not available.")
             return
-
-        # Ensure mode allows drawing
         if "draw" not in (self.aoiModeCombo.currentText() or "").lower():
             self.aoiModeCombo.setCurrentText("Draw polygon")
 
         prev_tool = canvas.mapTool()
 
         def _finish(bbox):
-            # restore previous tool
             try:
                 canvas.setMapTool(prev_tool)
             except Exception:
@@ -388,9 +490,7 @@ class EngineDockWidget(QDockWidget):
             if bbox is None:
                 _log(self, "AOI drawing canceled.")
                 return
-            # bbox is in canvas CRS; convert to WGS84 before storing
-            wgs_bbox = _extent_to_wgs84(self.iface, _rect_from_bbox(bbox))
-            self._aoi_bbox = wgs_bbox
+            self._aoi_bbox = _extent_to_wgs84(self.iface, _rect_from_bbox(bbox))
             self._update_aoi_preview()
 
         self._aoi_tool = _AoiDrawTool(canvas, _finish)
@@ -403,26 +503,24 @@ class EngineDockWidget(QDockWidget):
 
     def _update_aoi_preview(self):
         if self._aoi_bbox:
-            xmin, ymin, xmax, ymax = self._aoi_bbox
-            self.aoiPreviewLabel.setText(f"AOI (EPSG:4326): ({xmin:.6f}, {ymin:.6f}, {xmax:.6f}, {ymax:.6f})")
+            x1, y1, x2, y2 = self._aoi_bbox
+            self.aoiPreviewLabel.setText(f"AOI (EPSG:4326): ({x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f})")
         else:
             self.aoiPreviewLabel.setText("<i>AOI: not set yet</i>")
 
-    # ---------- run ----------
     def _collect_params(self):
         if VCubeProcessor is None:
             raise RuntimeError(f"VCubeProcessor import failed: {VCUBE_IMPORT_ERROR}")
         if not self._aoi_bbox:
             raise RuntimeError("Please set AOI (Use Canvas Extent or Draw AOI) before running.")
 
-        # Safety net: if stored bbox looks projected, try converting current canvas extent
         bbox_wgs84 = self._aoi_bbox
         if _bbox_looks_projected(bbox_wgs84):
             canvas = self.iface.mapCanvas()
             if canvas and canvas.extent():
                 bbox_wgs84 = _extent_to_wgs84(self.iface, canvas.extent())
             else:
-                raise RuntimeError("AOI appears to be in a projected CRS. Please set AOI again.")
+                raise RuntimeError("AOI appears projected; please set AOI again.")
 
         if self._common:
             c = self._common.get_params()
@@ -481,7 +579,9 @@ class EngineDockWidget(QDockWidget):
         )
 
     def _run_clicked(self):
-        # Quick date order check when using common widget
+        # Flip to True for a one-off synchronous run to surface exceptions immediately
+        DEBUG_SYNC = False
+
         if self._common:
             try:
                 p = self._common.get_params()
@@ -491,18 +591,29 @@ class EngineDockWidget(QDockWidget):
             except Exception:
                 pass
 
-        self._set_running(True)
         try:
             params = self._collect_params()
         except Exception as e:
-            self._set_running(False)
             QMessageBox.warning(self, "VirtuGhan", str(e))
             return
 
         _log(self, f"Output: {params['output_dir']}")
         _log_path = os.path.join(params["output_dir"], "runtime.log")
         _log(self, f"Log file: {_log_path}")
+        self._start_log_tailer(_log_path)
+
+        if DEBUG_SYNC:
+            _log(self, "Running synchronously (debug)…")
+            try:
+                task = _VCubeTask("VirtuGhan Engine (sync)", params)
+                ok = task.run()
+                task.finished(ok)
+            except Exception as e:
+                QMessageBox.critical(self, "VirtuGhan (sync error)", f"{e}\n\n{traceback.format_exc()}")
+            return
+
         _log(self, "Submitting background task…")
+        self._set_running(True)
 
         def _on_done(ok, exc):
             self._set_running(False)
@@ -522,10 +633,8 @@ class EngineDockWidget(QDockWidget):
         self.progressBar.setRange(0, 0 if running else 1)
         self.runButton.setEnabled(not running)
         self.resetButton.setEnabled(not running)
-
         self.aoiUseCanvasButton.setEnabled(not running)
         self.aoiStartDrawButton.setEnabled(not running)
         self.aoiClearButton.setEnabled(not running)
         self.aoiModeCombo.setEnabled(not running)
-
         self.outputBrowseButton.setEnabled(not running)
