@@ -8,6 +8,7 @@ from qgis.core import (
     QgsProcessingParameterNumber, QgsProcessingParameterString, QgsProcessingParameterBoolean,
     QgsProcessingParameterEnum, QgsProcessingParameterFolderDestination, QgsProcessingUtils,
     QgsProcessingException, QgsProject, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
+    QgsRasterLayer,
 )
 
 # Optional Date parameter (QGIS 3.34 compatibility)
@@ -90,10 +91,14 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterExtent("EXTENT", "Area of interest (any CRS)"))
 
         if HAVE_DATE_PARAM:
-            self.addParameter(QgsProcessingParameterDate("START_DATE", "Start date",
-                             defaultValue=QDate.currentDate().addYears(-1)))
-            self.addParameter(QgsProcessingParameterDate("END_DATE", "End date",
-                             defaultValue=QDate.currentDate()))
+            self.addParameter(QgsProcessingParameterString(
+                "START_DATE", "Start date (YYYY-MM-DD)",
+                defaultValue=QDate.currentDate().addMonths(-1).toString("yyyy-MM-dd")
+            ))
+            self.addParameter(QgsProcessingParameterString(
+                "END_DATE", "End date (YYYY-MM-DD)",
+                defaultValue=QDate.currentDate().toString("yyyy-MM-dd")
+            ))
         else:
             self.addParameter(QgsProcessingParameterString(
                 "START_DATE", "Start date (YYYY-MM-DD)",
@@ -174,7 +179,7 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         ts = self.parameterAsBool(parameters, "TIMESERIES", context)
         smart = self.parameterAsBool(parameters, "SMART_FILTER", context)
 
-        # If timeseries is False, require an operation (like the API)
+        # If timeseries is False, require an operation (like your API)
         if ts is False and operation is None:
             raise QgsProcessingException("Operation is required when 'Generate timeseries' is disabled.")
 
@@ -236,4 +241,24 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
                     print(traceback.format_exc(), flush=True)
                     raise QgsProcessingException("VCubeProcessor.compute() failed – see runtime.log for details.")
 
-        return {"OUTPUT": out_dir}
+        # --- AUTO-LOAD all rasters in output folder into the map ----------------
+        loaded = []
+        for root, _dirs, files in os.walk(out_dir):
+            for fn in files:
+                if fn.lower().endswith((".tif", ".tiff", ".vrt")):
+                    path = os.path.normpath(os.path.join(root, fn))
+                    name = os.path.splitext(fn)[0]
+                    lyr = QgsRasterLayer(path, name, "gdal")
+                    if lyr.isValid():
+                        QgsProject.instance().addMapLayer(lyr, addToLegend=True)
+                        loaded.append(path)
+                        feedback.pushInfo(f"Loaded raster: {path}")
+                    else:
+                        feedback.reportError(f"Failed to load raster: {path}")
+
+        if not loaded:
+            feedback.pushInfo("No .tif/.tiff/.vrt files found in output folder to load.")
+        else:
+            feedback.pushInfo(f"Added {len(loaded)} raster(s) to the map.")
+
+        return {"OUTPUT": out_dir, "RASTERS": loaded}

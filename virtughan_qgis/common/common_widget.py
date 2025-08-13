@@ -24,7 +24,7 @@ class CommonParamsWidget(QtWidgets.QWidget):
         self._bands_meta = load_bands_meta()
 
         # defaults
-        self.startDate.setDate(QDate.currentDate().addYears(-1))
+        self.startDate.setDate(QDate.currentDate().addMonths(-1))
         self.endDate.setDate(QDate.currentDate())
         self.cloudSpin.setRange(0, 100)
         self.cloudSpin.setValue(30)

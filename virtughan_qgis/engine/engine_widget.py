@@ -398,8 +398,9 @@ class EngineDockWidget(QDockWidget):
             lay = QFormLayout(fallback)
 
             self.startDateEdit = QDateEdit(fallback); self.startDateEdit.setCalendarPopup(True)
-            self.startDateEdit.setDate(QDate.currentDate().addYears(-1))
-            self.endDateEdit = QDateEdit(fallback); self.endDateEdit.setCalendarPopup(True)
+            self.startDateEdit.setDate(QDate.currentDate().addMonths(-1))
+            self.endDateEdit = QDateEdit(fallback); 
+            self.endDateEdit.setCalendarPopup(True)
             self.endDateEdit.setDate(QDate.currentDate())
 
             self.cloudSpinFallback = QSpinBox(fallback); self.cloudSpinFallback.setRange(0, 100); self.cloudSpinFallback.setValue(30)
@@ -444,7 +445,7 @@ class EngineDockWidget(QDockWidget):
             if self._common:
                 self._common.set_defaults()
             else:
-                self.startDateEdit.setDate(QDate.currentDate().addYears(-1))
+                self.startDateEdit.setDate(QDate.currentDate().addMonths(-1))
                 self.endDateEdit.setDate(QDate.currentDate())
                 self.cloudSpinFallback.setValue(30)
                 self.formulaEditFallback.setText("(band2-band1)/(band2+band1)")
