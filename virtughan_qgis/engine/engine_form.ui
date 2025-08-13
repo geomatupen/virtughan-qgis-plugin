@@ -115,6 +115,8 @@
           </item>
           <item row="0" column="1">
            <widget class="QComboBox" name="opCombo">
+            <!-- Default to "none" (index 7) -->
+            <property name="currentIndex"><number>7</number></property>
             <item><property name="text"><string>mean</string></property></item>
             <item><property name="text"><string>median</string></property></item>
             <item><property name="text"><string>max</string></property></item>
@@ -129,7 +131,8 @@
            <widget class="QCheckBox" name="timeseriesCheck">
             <property name="text"><string>Generate timeseries (GIF)</string></property>
             <property name="toolTip"><string>Create intermediate results and a GIF</string></property>
-            <property name="checked"><bool>true</bool></property>
+            <!-- Default unchecked -->
+            <property name="checked"><bool>false</bool></property>
            </widget>
           </item>
           <item row="0" column="3">
@@ -148,14 +151,15 @@
          <property name="title"><string>Output</string></property>
          <layout class="QGridLayout" name="gridOutput">
           <item row="0" column="0">
-           <widget class="QLabel" name="labelWorkers"><property name="text"><string>Workers (0 = auto)</string></property></widget>
+           <widget class="QLabel" name="labelWorkers"><property name="text"><string>Workers</string></property></widget>
           </item>
           <item row="0" column="1">
            <widget class="QSpinBox" name="workersSpin">
-            <property name="minimum"><number>0</number></property>
+            <!-- Min 1, default 1 -->
+            <property name="minimum"><number>1</number></property>
             <property name="maximum"><number>64</number></property>
-            <property name="value"><number>0</number></property>
-            <property name="toolTip"><string>0 picks CPU cores - 1</string></property>
+            <property name="value"><number>1</number></property>
+            <property name="toolTip"><string>Number of parallel workers</string></property>
            </widget>
           </item>
           <item row="0" column="2">
@@ -210,7 +214,7 @@
           <widget class="QPushButton" name="runButton">
            <property name="text"><string>Run Engine</string></property>
            <property name="minimumHeight"><number>30</number></property>
-           <property name="toolTip"><string>Start processing in background</string></property>
+           <property name="toolTip"><string>Start processing</string></property>
           </widget>
          </item>
         </layout>
