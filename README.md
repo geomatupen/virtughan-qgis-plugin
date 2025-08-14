@@ -135,35 +135,43 @@ Test passed. Image saved at: /home/yourname/test_tile_output.png
 import sys
 
 # 1) Make sure pip is importable (usually already true on 3.34)
+```
 try:
     import pip  # noqa
 except Exception:
     import ensurepip
     ensurepip.bootstrap()
     import pip  # noqa
+```
 
 # 2) Helper that invokes pip inside the current Python, no subprocess/QGIS relaunch
+```
 def qgis_pip(args):
     import pip._internal
     print("pip", " ".join(args))
     rc = pip._internal.main(args)
     if rc != 0:
         raise RuntimeError(f"pip failed with exit code {rc}")
+```
 
 # 3) Upgrade pip (optional) and install virtughan
+```
 qgis_pip(["install", "--upgrade", "pip"])
 qgis_pip(["install", "virtughan"])
+```
 
 # 4) Verify
+```
 from importlib.metadata import version, packages_distributions
 import vcube, inspect, os
 
 print("virtughan version:", version("virtughan"))
 print("vcube loaded from:", os.path.abspath(inspect.getfile(vcube)))
-
+```
 
 
 # Quick Check: 
+```
 from vcube.engine import VCubeProcessor
 bbox = [83.98744091391563,28.20125131106528,83.98802295327187,28.202072732710718]  # small bbox
 proc = VCubeProcessor(
@@ -183,13 +191,14 @@ proc = VCubeProcessor(
 print("Processor created OK")
 # Optional: run a tiny compute (may take a bit and hit network)
 proc.compute()
-
+```
 
 Then you can install the plugin offline from files. 
 
 important folders: \\wsl.localhost\Ubuntu\home\upen\projects\virtughan-qgis-plugin
 
 C:\Users\ROG\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins
+
 
 
 
