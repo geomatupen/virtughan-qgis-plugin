@@ -135,6 +135,9 @@ Test passed. Image saved at: /home/yourname/test_tile_output.png
 import sys
 
 # 1) Make sure pip is importable (usually already true on 3.34)
+To make sure the pip is installed and virtughan is also installed on qgis python, follow these:
+1. go to plugins > python
+2. in the python console run these codes
 ```
 try:
     import pip  # noqa
@@ -198,6 +201,7 @@ Then you can install the plugin offline from files.
 important folders: \\wsl.localhost\Ubuntu\home\upen\projects\virtughan-qgis-plugin
 
 C:\Users\ROG\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins
+
 
 
 
