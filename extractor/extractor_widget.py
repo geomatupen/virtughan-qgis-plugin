@@ -269,7 +269,11 @@ class ExtractorDockWidget(QDockWidget):
 
     def _clear_aoi(self):
         self._aoi_bbox = None
+        if self._aoi_tool:
+            self._aoi_tool.deactivate()
+            self._aoi_tool = None
         self._update_aoi_preview()
+        #self._update_aoi_preview()
 
     def _aoi_mode_changed(self, text):
         pass  # no-op for now
@@ -295,14 +299,14 @@ class ExtractorDockWidget(QDockWidget):
         self._update_aoi_preview()
         if self.commonWidget and hasattr(self.commonWidget, "reset"):
             self.commonWidget.reset()
-            self.bandsListWidget.clearSelection()
-            self.zipOutputCheck.setChecked(False)
-            self.smartFilterCheck.setChecked(True)
-            self.workersSpin.setValue(1)
-            self.outputPathEdit.clear()
-            self.logText.clear()
-            self.progressBar.setValue(0)
-            self.progressBar.setVisible(False)
+            # self.bandsListWidget.clearSelection()
+            # self.zipOutputCheck.setChecked(False)
+            # self.smartFilterCheck.setChecked(True)
+            # self.workersSpin.setValue(1)
+            # self.outputPathEdit.clear()
+            # self.logText.clear()
+            # self.progressBar.setValue(0)
+            # self.progressBar.setVisible(False)
         #if self.commonWidget:
             
 
