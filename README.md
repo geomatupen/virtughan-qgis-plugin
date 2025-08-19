@@ -1,5 +1,5 @@
 # virtughan-qgis-plugin
-The `virtughan-qgis-plugin` integrates the capabilities of the [VirtuGhan](https://pypi.org/project/virtughan/) Python package directly into QGIS. It provides a modular interface for performing remote sensing tasks, such as tiling, extraction, and visualization of satellite data, within the familiar QGIS environment.
+The `virtughan qgis plugin` integrates the capabilities of the [VirtuGhan](https://pypi.org/project/virtughan/) Python package directly into QGIS. It provides a modular interface for performing remote sensing tasks, such as tiling, extraction, and visualization of satellite data, within the familiar QGIS environment.
 
 This plugin is part of the broader **VirtuGhan** initiative, which aims to support accessible Earth observation workflows for humanitarian and environmental applications. By using the PyPI-distributed `virtughan` package, this QGIS plugin remains lightweight, maintainable, and easy to update without duplicating core logic.
 
@@ -128,6 +128,83 @@ python tiler_logic_test.py
 ```
 Test passed. Image saved at: /home/yourname/test_tile_output.png
 ```
+
+
+
+
+import sys
+
+# 1) Make sure pip is importable (usually already true on 3.34)
+To make sure the pip is installed and virtughan is also installed on qgis python, follow these:
+1. go to plugins > python
+2. in the python console run these codes
+```
+try:
+    import pip  # noqa
+except Exception:
+    import ensurepip
+    ensurepip.bootstrap()
+    import pip  # noqa
+```
+
+# 2) Helper that invokes pip inside the current Python, no subprocess/QGIS relaunch
+```
+def qgis_pip(args):
+    import pip._internal
+    print("pip", " ".join(args))
+    rc = pip._internal.main(args)
+    if rc != 0:
+        raise RuntimeError(f"pip failed with exit code {rc}")
+```
+
+# 3) Upgrade pip (optional) and install virtughan
+```
+qgis_pip(["install", "--upgrade", "pip"])
+qgis_pip(["install", "virtughan"])
+```
+
+# 4) Verify
+```
+from importlib.metadata import version, packages_distributions
+import vcube, inspect, os
+
+print("virtughan version:", version("virtughan"))
+print("vcube loaded from:", os.path.abspath(inspect.getfile(vcube)))
+```
+
+
+# Quick Check: 
+```
+from vcube.engine import VCubeProcessor
+bbox = [83.98744091391563,28.20125131106528,83.98802295327187,28.202072732710718]  # small bbox
+proc = VCubeProcessor(
+    bbox=bbox,
+    start_date="2025-07-20",
+    end_date="2025-08-20",
+    cloud_cover=100,
+    formula="(band2-band1)/(band2+band1)",
+    band1="red",
+    band2="nir",
+    operation="median",
+    timeseries=False,
+    output_dir=r"C:\Users\ROG\Documents\virtughan_test",
+    workers=1,
+    smart_filter=True,
+)
+print("Processor created OK")
+# Optional: run a tiny compute (may take a bit and hit network)
+proc.compute()
+```
+
+Then you can install the plugin offline from files. 
+
+important folders: \\wsl.localhost\Ubuntu\home\upen\projects\virtughan-qgis-plugin
+
+C:\Users\ROG\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins
+
+
+
+
 
 
 
