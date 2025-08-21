@@ -5,6 +5,10 @@ import sys
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsApplication
+from .engine.engine_widget import EngineDockWidget
+from .extractor.extractor_widget import ExtractorDockWidget
+from qgis.core import QgsApplication
+from .processing_provider import VirtuGhanProcessingProvider
 
 # Path setup for vendored libs (optional if you include libs/ folder)
 PLUGIN_DIR = os.path.dirname(__file__)
@@ -23,28 +27,27 @@ except Exception:
 class VirtuGhanPlugin:
     def __init__(self, iface):
         self.iface = iface
-        self.action_engine = None
         self.engine_dock = None
+        self.extractor_dock = None
         self.provider = None
+        self.action_engine = None
+        self.action_extractor = None
         self._imports_ready = False
         self._last_import_error = None
 
     def _ensure_deps_and_imports(self):
-        """Ensure virtughan is installed and import plugin components."""
         if self._imports_ready:
             return True
-
-        # Install virtughan if not present
         ok = ensure_virtughan_installed(self.iface.mainWindow(), quiet=True)
         if not ok:
             self._last_import_error = "Automatic installation of 'virtughan' failed."
             return False
-
-        # Import actual plugin components
         try:
             from .engine.engine_widget import EngineDockWidget
+            from .extractor.extractor_widget import ExtractorDockWidget
             from .processing_provider import VirtuGhanProcessingProvider
             self._EngineDockWidget = EngineDockWidget
+            self._ExtractorDockWidget = ExtractorDockWidget
             self._VirtuGhanProcessingProvider = VirtuGhanProcessingProvider
             self._imports_ready = True
             return True
@@ -57,22 +60,30 @@ class VirtuGhanPlugin:
             QMessageBox.critical(
                 self.iface.mainWindow(),
                 "VirtuGhan",
-                f"VirtuGhan plugin could not initialize:\n\n{self._last_import_error}\n"
-                "Please check your internet connection or contact support."
+                f"VirtuGhan plugin could not initialize:\n\n{self._last_import_error}"
             )
+            # Add disabled actions to menu
             self.action_engine = QAction("VirtuGhan • Engine (unavailable)", self.iface.mainWindow())
             self.action_engine.setEnabled(False)
+            self.action_extractor = QAction("VirtuGhan • Extractor (unavailable)", self.iface.mainWindow())
+            self.action_extractor.setEnabled(False)
             self.iface.addPluginToMenu("VirtuGhan", self.action_engine)
-            self.iface.addToolBarIcon(self.action_engine)
+            self.iface.addPluginToMenu("VirtuGhan", self.action_extractor)
             return
 
-        # Action for Engine
+        # Engine QAction
         self.action_engine = QAction("VirtuGhan • Engine", self.iface.mainWindow())
         self.action_engine.triggered.connect(self.show_engine)
         self.iface.addPluginToMenu("VirtuGhan", self.action_engine)
         self.iface.addToolBarIcon(self.action_engine)
 
-        # Register processing provider (Engine now, Tiler/Extractor later)
+        # Extractor QAction
+        self.action_extractor = QAction("VirtuGhan • Extractor", self.iface.mainWindow())
+        self.action_extractor.triggered.connect(self.show_extractor)
+        self.iface.addPluginToMenu("VirtuGhan", self.action_extractor)
+        self.iface.addToolBarIcon(self.action_extractor)
+
+        # Register processing provider
         try:
             self.provider = self._VirtuGhanProcessingProvider()
             QgsApplication.processingRegistry().addProvider(self.provider)
@@ -84,6 +95,7 @@ class VirtuGhanPlugin:
             )
 
     def unload(self):
+        # Remove Engine action and dock
         if self.action_engine:
             self.iface.removePluginMenu("VirtuGhan", self.action_engine)
             self.iface.removeToolBarIcon(self.action_engine)
@@ -91,6 +103,17 @@ class VirtuGhanPlugin:
         if self.engine_dock:
             self.iface.removeDockWidget(self.engine_dock)
             self.engine_dock = None
+
+        # Remove Extractor action and dock
+        if self.action_extractor:
+            self.iface.removePluginMenu("VirtuGhan", self.action_extractor)
+            self.iface.removeToolBarIcon(self.action_extractor)
+            self.action_extractor = None
+        if self.extractor_dock:
+            self.iface.removeDockWidget(self.extractor_dock)
+            self.extractor_dock = None
+
+        # Remove provider
         if self.provider:
             try:
                 QgsApplication.processingRegistry().removeProvider(self.provider)
@@ -112,3 +135,18 @@ class VirtuGhanPlugin:
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.engine_dock)
         self.engine_dock.show()
         self.engine_dock.raise_()
+
+    def show_extractor(self):
+        if not self._imports_ready and not self._ensure_deps_and_imports():
+            QMessageBox.critical(
+                self.iface.mainWindow(),
+                "VirtuGhan",
+                f"Extractor UI cannot be shown because dependencies are missing:\n\n{self._last_import_error}"
+            )
+            return
+
+        if not self.extractor_dock:
+            self.extractor_dock = self._ExtractorDockWidget(self.iface)
+            self.iface.addDockWidget(Qt.RightDockWidgetArea, self.extractor_dock)
+        self.extractor_dock.show()
+        self.extractor_dock.raise_()
