@@ -29,9 +29,11 @@ class VirtuGhanPlugin:
         self.iface = iface
         self.engine_dock = None
         self.extractor_dock = None
+        self.tiler_dock = None
         self.provider = None
         self.action_engine = None
         self.action_extractor = None
+        self.action_tiler = None
         self._imports_ready = False
         self._last_import_error = None
 
@@ -45,9 +47,11 @@ class VirtuGhanPlugin:
         try:
             from .engine.engine_widget import EngineDockWidget
             from .extractor.extractor_widget import ExtractorDockWidget
+            from .tiler.tiler_widget import TilerDockWidget
             from .processing_provider import VirtuGhanProcessingProvider
             self._EngineDockWidget = EngineDockWidget
             self._ExtractorDockWidget = ExtractorDockWidget
+            self._TilerDockWidget = TilerDockWidget
             self._VirtuGhanProcessingProvider = VirtuGhanProcessingProvider
             self._imports_ready = True
             return True
@@ -83,6 +87,13 @@ class VirtuGhanPlugin:
         self.iface.addPluginToMenu("VirtuGhan", self.action_extractor)
         self.iface.addToolBarIcon(self.action_extractor)
 
+        # Tiler QAction
+        self.action_tiler = QAction("VirtuGhan • Tiler", self.iface.mainWindow())
+        self.action_tiler.triggered.connect(self.show_tiler)
+        self.iface.addPluginToMenu("VirtuGhan", self.action_tiler)
+        self.iface.addToolBarIcon(self.action_tiler)
+
+
         # Register processing provider
         try:
             self.provider = self._VirtuGhanProcessingProvider()
@@ -112,6 +123,16 @@ class VirtuGhanPlugin:
         if self.extractor_dock:
             self.iface.removeDockWidget(self.extractor_dock)
             self.extractor_dock = None
+
+        # Remove Tiler action and dock
+        if self.action_tiler:
+            self.iface.removePluginMenu("VirtuGhan", self.action_tiler)
+            self.iface.removeToolBarIcon(self.action_tiler)
+            self.action_tiler = None
+        if self.tiler_dock:
+            self.iface.removeDockWidget(self.tiler_dock)
+            self.tiler_dock = None
+
 
         # Remove provider
         if self.provider:
@@ -150,3 +171,18 @@ class VirtuGhanPlugin:
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.extractor_dock)
         self.extractor_dock.show()
         self.extractor_dock.raise_()
+
+    def show_tiler(self):
+        if not self._imports_ready and not self._ensure_deps_and_imports():
+            QMessageBox.critical(
+                self.iface.mainWindow(),
+                "VirtuGhan",
+                f"Tiler UI cannot be shown because dependencies are missing:\n\n{self._last_import_error}"
+            )
+            return
+        if not self.tiler_dock:
+            self.tiler_dock = self._TilerDockWidget(self.iface)
+            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.tiler_dock)
+        self.tiler_dock.show()
+        self.tiler_dock.raise_()
+
