@@ -22,7 +22,7 @@
       <item row="0" column="1">
        <widget class="QLineEdit" name="backendUrlLine">
         <property name="placeholderText">
-         <string>http://127.0.0.1:8000</string>
+         <string>http://127.0.0.1:8002</string>
         </property>
        </widget>
       </item>
@@ -209,6 +209,93 @@
      </item>
     </layout>
    </item>
+
+   <item>
+    <widget class="QGroupBox" name="groupBoxLocal">
+        <property name="title">
+        <string>Local Server</string>
+        </property>
+        <layout class="QGridLayout" name="gridLocal">
+        <item row="0" column="0">
+            <widget class="QLabel" name="labelRunLocal">
+            <property name="text">
+                <string>Run locally</string>
+            </property>
+            </widget>
+        </item>
+        <item row="0" column="1">
+            <widget class="QCheckBox" name="runLocalCheck">
+            <property name="checked"><bool>true</bool></property>
+            <property name="text"><string/></property>
+            </widget>
+        </item>
+
+        <item row="1" column="0">
+            <widget class="QLabel" name="labelAppPath">
+            <property name="text">
+                <string>App Path (module:function)</string>
+            </property>
+            </widget>
+        </item>
+        <item row="1" column="1">
+            <widget class="QLineEdit" name="appPathLine">
+            <property name="placeholderText">
+                <string>vcube.api:app</string>
+            </property>
+            </widget>
+        </item>
+
+        <item row="2" column="0">
+            <widget class="QLabel" name="labelHost">
+            <property name="text"><string>Host</string></property>
+            </widget>
+        </item>
+        <item row="2" column="1">
+            <widget class="QLineEdit" name="hostLine">
+            <property name="placeholderText"><string>127.0.0.1</string></property>
+            </widget>
+        </item>
+
+        <item row="3" column="0">
+            <widget class="QLabel" name="labelPort">
+            <property name="text"><string>Port</string></property>
+            </widget>
+        </item>
+        <item row="3" column="1">
+            <widget class="QSpinBox" name="portSpin">
+            <property name="minimum"><number>1</number></property>
+            <property name="maximum"><number>65535</number></property>
+            <property name="value"><number>8002</number></property>
+            </widget>
+        </item>
+
+        <item row="4" column="0">
+            <widget class="QLabel" name="labelWorkers">
+            <property name="text"><string>Workers</string></property>
+            </widget>
+        </item>
+        <item row="4" column="1">
+            <widget class="QSpinBox" name="workersSpin">
+            <property name="minimum"><number>1</number></property>
+            <property name="maximum"><number>64</number></property>
+            <property name="value"><number>1</number></property>
+            </widget>
+        </item>
+
+        <item row="5" column="0">
+            <widget class="QPushButton" name="startServerBtn">
+            <property name="text"><string>Start server</string></property>
+            </widget>
+        </item>
+        <item row="5" column="1">
+            <widget class="QPushButton" name="stopServerBtn">
+            <property name="text"><string>Stop server</string></property>
+            </widget>
+        </item>
+        </layout>
+    </widget>
+    </item>
+
 
   </layout>
  </widget>
