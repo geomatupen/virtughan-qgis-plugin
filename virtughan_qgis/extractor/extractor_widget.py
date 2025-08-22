@@ -1,27 +1,44 @@
 import os
-import uuid
 import traceback
+import uuid
 from datetime import datetime
-from osgeo import gdal
-from osgeo import osr
 
-from qgis.PyQt import uic
-from qgis.PyQt.QtCore import Qt, QDate
-from qgis.PyQt.QtGui import QColor
-from qgis.PyQt.QtWidgets import (
-    QWidget, QDockWidget, QFileDialog, QMessageBox, QVBoxLayout,
-    QProgressBar, QPlainTextEdit, QComboBox, QCheckBox, QLabel,
-    QPushButton, QSpinBox, QLineEdit, QListWidget
-)
-
+from osgeo import gdal, osr
 from qgis.core import (
-    Qgis, QgsMessageLog, QgsProcessingUtils, QgsProject,
-    QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsRectangle,
-    QgsRasterLayer, QgsApplication, QgsTask, QgsWkbTypes,
-    QgsGeometry, QgsPointXY
+    Qgis,
+    QgsApplication,
+    QgsCoordinateReferenceSystem,
+    QgsCoordinateTransform,
+    QgsGeometry,
+    QgsMessageLog,
+    QgsPointXY,
+    QgsProcessingUtils,
+    QgsProject,
+    QgsRasterLayer,
+    QgsRectangle,
+    QgsTask,
+    QgsWkbTypes,
 )
 from qgis.gui import QgsMapTool, QgsRubberBand
-
+from qgis.PyQt import uic
+from qgis.PyQt.QtCore import QDate, Qt
+from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtWidgets import (
+    QCheckBox,
+    QComboBox,
+    QDockWidget,
+    QFileDialog,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QMessageBox,
+    QPlainTextEdit,
+    QProgressBar,
+    QPushButton,
+    QSpinBox,
+    QVBoxLayout,
+    QWidget,
+)
 
 COMMON_IMPORT_ERROR = None
 CommonParamsWidget = None
@@ -34,12 +51,8 @@ except Exception as _e:
 
 EXTRACTOR_IMPORT_ERROR = None
 ExtractorBackend = None
-try:
-    from vcube.extract import ExtractProcessor as ExtractorBackend
-except Exception as _e:
-    EXTRACTOR_IMPORT_ERROR = _e
-    ExtractorBackend = None
 
+from virtughan.extract import ExtractProcessor as ExtractorBackend
 
 UI_PATH = os.path.join(os.path.dirname(__file__), "extractor_form.ui")
 FORM_CLASS, _ = uic.loadUiType(UI_PATH)
@@ -58,14 +71,21 @@ def _extent_to_wgs84_bbox(iface, extent):
         return None
 
     canvas = iface.mapCanvas() if iface else None
-    src_crs = canvas.mapSettings().destinationCrs() if canvas else QgsProject.instance().crs()
+    src_crs = (
+        canvas.mapSettings().destinationCrs() if canvas else QgsProject.instance().crs()
+    )
     wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
     xform = QgsCoordinateTransform(src_crs, wgs84, QgsProject.instance())
 
     if isinstance(extent, QgsRectangle):
         ll = xform.transform(extent.xMinimum(), extent.yMinimum())
         ur = xform.transform(extent.xMaximum(), extent.yMaximum())
-        return [min(ll.x(), ur.x()), min(ll.y(), ur.y()), max(ll.x(), ur.x()), max(ll.y(), ur.y())]
+        return [
+            min(ll.x(), ur.x()),
+            min(ll.y(), ur.y()),
+            max(ll.x(), ur.x()),
+            max(ll.y(), ur.y()),
+        ]
 
     if isinstance(extent, QgsGeometry):
         try:
@@ -99,7 +119,6 @@ def _bbox_looks_projected(b):
 
 
 class _AoiDrawTool(QgsMapTool):
-
     def __init__(self, canvas, on_done):
         super().__init__(canvas)
         self.canvas = canvas
@@ -193,7 +212,9 @@ class _ExtractorTask(QgsTask):
         try:
             os.makedirs(self.params["output_dir"], exist_ok=True)
             with open(self.log_path, "a", encoding="utf-8", buffering=1) as logf:
-                logf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Starting Extractor\n")
+                logf.write(
+                    f"[{datetime.now().isoformat(timespec='seconds')}] Starting Extractor\n"
+                )
                 logf.write(f"Params: {self.params}\n")
                 extr = ExtractorBackend(
                     bbox=self.params["bbox"],
@@ -205,7 +226,7 @@ class _ExtractorTask(QgsTask):
                     log_file=logf,
                     workers=self.params["workers"],
                     zip_output=self.params["zip_output"],
-                    smart_filter=self.params["smart_filter"]
+                    smart_filter=self.params["smart_filter"],
                 )
                 extr.extract()
                 logf.write("Extractor finished.\n")
@@ -292,7 +313,9 @@ class ExtractorDockWidget(QDockWidget):
             layout.addWidget(self.commonWidget)
         else:
             self.commonWidget = None
-            _log(self, f"CommonParamsWidget failed: {COMMON_IMPORT_ERROR}", Qgis.Warning)
+            _log(
+                self, f"CommonParamsWidget failed: {COMMON_IMPORT_ERROR}", Qgis.Warning
+            )
 
     def _get_common_params(self):
         if self.commonWidget:
@@ -331,7 +354,11 @@ class ExtractorDockWidget(QDockWidget):
             pts = []
             geom_poly = polygon_geom_mapcrs.asPolygon()
             if not geom_poly:
-                geom_poly = polygon_geom_mapcrs.asMultiPolygon()[0] if polygon_geom_mapcrs.asMultiPolygon() else []
+                geom_poly = (
+                    polygon_geom_mapcrs.asMultiPolygon()[0]
+                    if polygon_geom_mapcrs.asMultiPolygon()
+                    else []
+                )
             ring = geom_poly[0] if geom_poly else []
             for p in ring:
                 tp = xform.transform(p.x(), p.y())
@@ -474,7 +501,7 @@ class ExtractorDockWidget(QDockWidget):
                 "width": w,
                 "height": h,
                 "bbox": (minx, miny, maxx, maxy),
-                "proj_wkt": prj
+                "proj_wkt": prj,
             }
         except Exception as e:
             _log(self, f"_inspect_raster error: {e}", Qgis.Warning)
@@ -484,13 +511,21 @@ class ExtractorDockWidget(QDockWidget):
         try:
             ds = gdal.Open(src_path)
             if ds is None:
-                _log(self, f"_rewrite_bounds_to_wgs84: gdal.Open failed for {src_path}", Qgis.Warning)
+                _log(
+                    self,
+                    f"_rewrite_bounds_to_wgs84: gdal.Open failed for {src_path}",
+                    Qgis.Warning,
+                )
                 return None
 
             w = ds.RasterXSize
             h = ds.RasterYSize
             if not (w and h):
-                _log(self, f"_rewrite_bounds_to_wgs84: invalid raster size for {src_path}", Qgis.Warning)
+                _log(
+                    self,
+                    f"_rewrite_bounds_to_wgs84: invalid raster size for {src_path}",
+                    Qgis.Warning,
+                )
                 ds = None
                 return None
 
@@ -509,7 +544,11 @@ class ExtractorDockWidget(QDockWidget):
 
             out_ds = driver.CreateCopy(dst, ds, strict=0)
             if out_ds is None:
-                _log(self, f"_rewrite_bounds_to_wgs84: CreateCopy failed for {src_path}", Qgis.Warning)
+                _log(
+                    self,
+                    f"_rewrite_bounds_to_wgs84: CreateCopy failed for {src_path}",
+                    Qgis.Warning,
+                )
                 ds = None
                 return None
 
@@ -541,29 +580,40 @@ class ExtractorDockWidget(QDockWidget):
             else:
                 try:
                     from pyproj import Transformer
+
                     src_epsg = None
                     wkt = info["proj_wkt"]
                     if "EPSG" in wkt:
                         import re
-                        m = re.search(r'EPSG\"\s*,\s*([0-9]{3,5})', wkt)
+
+                        m = re.search(r"EPSG\"\s*,\s*([0-9]{3,5})", wkt)
                         if m:
                             src_epsg = int(m.group(1))
                     if src_epsg:
-                        transformer = Transformer.from_crs(f"EPSG:{src_epsg}", "EPSG:4326", always_xy=True)
+                        transformer = Transformer.from_crs(
+                            f"EPSG:{src_epsg}", "EPSG:4326", always_xy=True
+                        )
                         fminx, fminy, fmaxx, fmaxy = info["bbox"]
                         ll = transformer.transform(fminx, fminy)
                         ur = transformer.transform(fmaxx, fmaxy)
                         file_bbox_wgs84 = (ll[0], ll[1], ur[0], ur[1])
                         cx_file = (file_bbox_wgs84[0] + file_bbox_wgs84[2]) / 2.0
                         cy_file = (file_bbox_wgs84[1] + file_bbox_wgs84[3]) / 2.0
-                        cx_expected = (expected_bbox_wgs84[0] + expected_bbox_wgs84[2]) / 2.0
-                        cy_expected = (expected_bbox_wgs84[1] + expected_bbox_wgs84[3]) / 2.0
+                        cx_expected = (
+                            expected_bbox_wgs84[0] + expected_bbox_wgs84[2]
+                        ) / 2.0
+                        cy_expected = (
+                            expected_bbox_wgs84[1] + expected_bbox_wgs84[3]
+                        ) / 2.0
                         import math
+
                         dist = math.hypot(cx_file - cx_expected, cy_file - cy_expected)
                         if dist <= 0.1:
                             load_path = path
                         else:
-                            fixed = self._rewrite_bounds_to_wgs84(path, expected_bbox_wgs84)
+                            fixed = self._rewrite_bounds_to_wgs84(
+                                path, expected_bbox_wgs84
+                            )
                             load_path = fixed or path
                     else:
                         fixed = self._rewrite_bounds_to_wgs84(path, expected_bbox_wgs84)
@@ -572,7 +622,9 @@ class ExtractorDockWidget(QDockWidget):
                     fixed = self._rewrite_bounds_to_wgs84(path, expected_bbox_wgs84)
                     load_path = fixed or path
 
-            lyr = QgsRasterLayer(load_path, os.path.splitext(os.path.basename(load_path))[0], "gdal")
+            lyr = QgsRasterLayer(
+                load_path, os.path.splitext(os.path.basename(load_path))[0], "gdal"
+            )
             if lyr.isValid():
                 QgsProject.instance().addMapLayer(lyr)
                 _log(self, f"Loaded raster: {load_path}")
@@ -613,7 +665,12 @@ class ExtractorDockWidget(QDockWidget):
             center_a_lon = (lonmin_a + lonmax_a) / 2.0
             center_a_lat = (latmin_a + latmax_a) / 2.0
 
-            lonmin_b, latmin_b, lonmax_b, latmax_b = bbox_wgs84[1], bbox_wgs84[0], bbox_wgs84[3], bbox_wgs84[2]
+            lonmin_b, latmin_b, lonmax_b, latmax_b = (
+                bbox_wgs84[1],
+                bbox_wgs84[0],
+                bbox_wgs84[3],
+                bbox_wgs84[2],
+            )
             center_b_lon = (lonmin_b + lonmax_b) / 2.0
             center_b_lat = (latmin_b + latmax_b) / 2.0
 
@@ -650,11 +707,15 @@ class ExtractorDockWidget(QDockWidget):
 
     def _collect_params(self):
         if ExtractorBackend is None:
-            raise RuntimeError(f"Extractor backend import failed: {EXTRACTOR_IMPORT_ERROR}")
+            raise RuntimeError(
+                f"Extractor backend import failed: {EXTRACTOR_IMPORT_ERROR}"
+            )
         if not self._aoi_bbox:
             raise RuntimeError("Please set AOI before running.")
         if _bbox_looks_projected(self._aoi_bbox):
-            raise RuntimeError(f"AOI bbox does not look like EPSG:4326: {self._aoi_bbox}")
+            raise RuntimeError(
+                f"AOI bbox does not look like EPSG:4326: {self._aoi_bbox}"
+            )
 
         p = self._get_common_params()
         sdt = QDate.fromString(p["start_date"], "yyyy-MM-dd")
@@ -673,7 +734,9 @@ class ExtractorDockWidget(QDockWidget):
         smart = self.smartFilterCheck.isChecked()
 
         workers = max(1, int(self.workersSpin.value()))
-        out_base = (self.outputPathEdit.text() or "").strip() or QgsProcessingUtils.tempFolder()
+        out_base = (
+            self.outputPathEdit.text() or ""
+        ).strip() or QgsProcessingUtils.tempFolder()
         out_dir = os.path.join(out_base, f"virtughan_extractor_{uuid.uuid4().hex[:8]}")
 
         params = dict(
@@ -685,7 +748,7 @@ class ExtractorDockWidget(QDockWidget):
             zip_output=zip_out,
             smart_filter=smart,
             workers=workers,
-            output_dir=out_dir
+            output_dir=out_dir,
         )
 
         if hasattr(self, "_aoi_polygon_wgs84") and self._aoi_polygon_wgs84:
@@ -698,7 +761,10 @@ class ExtractorDockWidget(QDockWidget):
                     _log(self, f"Normalized bbox (swapped lat/lon) -> {norm_bbox}")
                     params["bbox"] = norm_bbox
                 elif why == "ambiguous":
-                    _log(self, f"AOI bbox ambiguous vs canvas; using original: {params['bbox']}")
+                    _log(
+                        self,
+                        f"AOI bbox ambiguous vs canvas; using original: {params['bbox']}",
+                    )
                 elif why == "ok":
                     _log(self, f"AOI bbox OK: {params['bbox']}")
                 else:
@@ -720,7 +786,10 @@ class ExtractorDockWidget(QDockWidget):
                 _log(self, f"Normalized bbox (swapped lat/lon) -> {norm_bbox}")
                 params["bbox"] = norm_bbox
             elif why == "ambiguous":
-                _log(self, f"AOI bbox ambiguous vs canvas; using original: {params['bbox']}")
+                _log(
+                    self,
+                    f"AOI bbox ambiguous vs canvas; using original: {params['bbox']}",
+                )
             elif why == "error":
                 _log(self, "AOI bbox normalization had an error; using original.")
             else:
@@ -730,9 +799,12 @@ class ExtractorDockWidget(QDockWidget):
 
         _log(self, f"Running extractor with bbox: {params.get('bbox')}")
         if params.get("polygon_wgs84"):
-            _log(self, f"Running extractor with polygon_wgs84 (first 6 coords): {params['polygon_wgs84'][:6]}")
+            _log(
+                self,
+                f"Running extractor with polygon_wgs84 (first 6 coords): {params['polygon_wgs84'][:6]}",
+            )
         try:
-            self._draw_debug_bbox(params['bbox'])
+            self._draw_debug_bbox(params["bbox"])
         except Exception:
             pass
 
@@ -740,7 +812,9 @@ class ExtractorDockWidget(QDockWidget):
         try:
             os.makedirs(out_dir, exist_ok=True)
         except Exception as e:
-            QMessageBox.critical(self, "VirtuGhan", f"Cannot create output folder:\n{out_dir}\n\n{e}")
+            QMessageBox.critical(
+                self, "VirtuGhan", f"Cannot create output folder:\n{out_dir}\n\n{e}"
+            )
             return
 
         log_path = os.path.join(out_dir, "runtime.log")
@@ -754,7 +828,11 @@ class ExtractorDockWidget(QDockWidget):
         def _on_done(ok, exc):
             if not ok or exc:
                 _log(self, f"Extractor failed: {exc}", Qgis.Critical)
-                QMessageBox.critical(self, "VirtuGhan", f"Extractor failed:\n{exc}\n\nSee runtime.log for details.")
+                QMessageBox.critical(
+                    self,
+                    "VirtuGhan",
+                    f"Extractor failed:\n{exc}\n\nSee runtime.log for details.",
+                )
             else:
                 added = 0
                 for root, _dirs, files in os.walk(out_dir):
@@ -762,14 +840,24 @@ class ExtractorDockWidget(QDockWidget):
                         if fn.lower().endswith((".tif", ".tiff", ".vrt")):
                             path = os.path.join(root, fn)
                             expected_bbox = getattr(self, "_aoi_bbox", None)
-                            ok = self._try_fix_and_load(path, expected_bbox if expected_bbox else None)
+                            ok = self._try_fix_and_load(
+                                path, expected_bbox if expected_bbox else None
+                            )
                             if ok:
                                 added += 1
                             else:
-                                _log(self, f"Failed to load raster even after fix attempt: {path}", Qgis.Warning)
+                                _log(
+                                    self,
+                                    f"Failed to load raster even after fix attempt: {path}",
+                                    Qgis.Warning,
+                                )
                 if added == 0:
                     _log(self, "No raster files found to load.")
-                QMessageBox.information(self, "VirtuGhan", f"Extractor finished.\nOutput: {out_dir}")
+                QMessageBox.information(
+                    self, "VirtuGhan", f"Extractor finished.\nOutput: {out_dir}"
+                )
 
-        self._current_task = _ExtractorTask("VirtuGhan Extractor", params, log_path, on_done=_on_done)
+        self._current_task = _ExtractorTask(
+            "VirtuGhan Extractor", params, log_path, on_done=_on_done
+        )
         QgsApplication.taskManager().addTask(self._current_task)
