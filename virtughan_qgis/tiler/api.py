@@ -1,5 +1,5 @@
 # virtughan_qgis/tiler/api.py
-# Local FastAPI that serves tiles using the installed 'virtughan' package.
+
 
 import os
 import sys
@@ -22,7 +22,7 @@ def _find_tileprocessor() -> Tuple[type, str]:
     Returns (class, 'module:Class') or raises ImportError with a clear message.
     """
     try:
-        import virtughan  # noqa
+        import virtughan  
     except Exception as e:
         raise ImportError(
             "Cannot import 'virtughan' in this QGIS Python. "
@@ -30,7 +30,7 @@ def _find_tileprocessor() -> Tuple[type, str]:
             f"Underlying error: {e}"
         )
 
-    import virtughan  # type: ignore
+    import virtughan  
     for m in pkgutil.walk_packages(virtughan.__path__, "virtughan."):
         if m.ispkg:
             continue
@@ -42,9 +42,9 @@ def _find_tileprocessor() -> Tuple[type, str]:
             if inspect.isclass(obj) and name == "TileProcessor":
                 return obj, f"{m.name}:{name}"
 
-    # Last-ditch guess (common location)
+    
     try:
-        from virtughan.tile import TileProcessor  # type: ignore
+        from virtughan.tile import TileProcessor  
         return TileProcessor, "virtughan.tile:TileProcessor"
     except Exception:
         pass
@@ -55,7 +55,7 @@ def _find_tileprocessor() -> Tuple[type, str]:
 TileProcessor, TP_path = _find_tileprocessor()
 
 app = FastAPI(title="virtughan tiler (QGIS local)")
-processor = TileProcessor(cache_time=60)  # shared instance (typically caches internally)
+processor = TileProcessor(cache_time=60)  
 
 
 @app.get("/health")
@@ -87,18 +87,18 @@ async def get_tile(
     operation: str = Query("median"),
     timeseries: bool = Query(False),
 ):
-    # Match VirtuGhan behavior: limit zooms
+    
     if z < 10 or z > 23:
         return JSONResponse(content={"error": "Zoom level must be between 10 and 23"}, status_code=400)
 
-    # Date defaults if not provided
+    
     if not start_date:
         start_date = (datetime.utcnow() - timedelta(days=360)).strftime("%Y-%m-%d")
     if not end_date:
         end_date = datetime.utcnow().strftime("%Y-%m-%d")
 
     try:
-        # NOTE: VirtuGhan’s processor typically returns (image_bytes, feature)
+        
         image_bytes, feature = await processor.cached_generate_tile(
             x=x,
             y=y,
@@ -111,7 +111,7 @@ async def get_tile(
             formula=formula,
             colormap_str=colormap_str,
             operation=operation,
-            latest=not timeseries,  # timeseries True => latest False
+            latest=not timeseries,  
         )
         headers = {}
         try:

@@ -23,7 +23,7 @@ class CommonParamsWidget(QtWidgets.QWidget):
         self.ui = uic.loadUi(FORM_PATH, self)
         self._bands_meta = load_bands_meta()
 
-        # defaults
+        
         self.startDate.setDate(QDate.currentDate().addMonths(-1))
         self.endDate.setDate(QDate.currentDate())
         self.cloudSpin.setRange(0, 100)
@@ -32,7 +32,7 @@ class CommonParamsWidget(QtWidgets.QWidget):
 
         populate_band_combos(self.band1Combo, self.band2Combo, self._bands_meta)
 
-        # resolution warnings on change
+        
         self.band1Combo.currentTextChanged.connect(self._on_band_change)
         self.band2Combo.currentTextChanged.connect(self._on_band_change)
 

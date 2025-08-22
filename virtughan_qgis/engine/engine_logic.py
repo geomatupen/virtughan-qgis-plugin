@@ -11,20 +11,18 @@ from qgis.core import (
     QgsRasterLayer,
 )
 
-# Optional Date parameter (QGIS 3.34 compatibility)
 try:
-    from qgis.core import QgsProcessingParameterDate  # type: ignore
+    from qgis.core import QgsProcessingParameterDate
     HAVE_DATE_PARAM = True
 except Exception:
-    QgsProcessingParameterDate = None  # type: ignore
+    QgsProcessingParameterDate = None
     HAVE_DATE_PARAM = False
 
-# Backend
 VIRTUGHAN_IMPORT_ERROR = None
 try:
     from virtughan.engine import VirtughanProcessor
 except Exception as e:
-    VirtughanProcessor = None  # type: ignore
+    VirtughanProcessor = None
     VIRTUGHAN_IMPORT_ERROR = e
 
 
@@ -34,7 +32,7 @@ def _coerce_to_qdate(val) -> QDate:
     s = "" if val is None else str(val).strip()
     if not s:
         return QDate()
-    return QDate.fromString(s, Qt.ISODate)  # YYYY-MM-DD
+    return QDate.fromString(s, Qt.ISODate)
 
 
 def _extent_to_wgs84_bbox(extent, src_crs):
@@ -60,10 +58,8 @@ class _FeedbackTee(io.TextIOBase):
     def write(self, s):
         if not s:
             return 0
-        # write to file immediately
         self.file.write(s)
         self.file.flush()
-        # buffer for feedback
         self._buf += s
         while "\n" in self._buf:
             line, self._buf = self._buf.split("\n", 1)
@@ -112,7 +108,7 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             defaultValue="nir", optional=True))
         self.addParameter(QgsProcessingParameterEnum(
             "OPERATION", "Aggregation",
-            options=["mean","median","max","min","std","sum","var","none"], defaultValue=7))  # default 'none'
+            options=["mean","median","max","min","std","sum","var","none"], defaultValue=7))
         self.addParameter(QgsProcessingParameterBoolean(
             "TIMESERIES", "Generate timeseries (GIF)", defaultValue=False))
         self.addParameter(QgsProcessingParameterBoolean(
@@ -134,7 +130,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         if VIRTUGHAN_IMPORT_ERROR:
             raise QgsProcessingException(f"VirtughanProcessor import failed: {VIRTUGHAN_IMPORT_ERROR}")
 
-        # AOI → EPSG:4326
         extent = self.parameterAsExtent(parameters, "EXTENT", context)
         try:
             src_crs = self.parameterAsExtentCrs(parameters, "EXTENT", context)
@@ -143,7 +138,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         bbox = _extent_to_wgs84_bbox(extent, src_crs)
         feedback.pushInfo(f"AOI (EPSG:4326): {bbox}")
 
-        # Dates
         if HAVE_DATE_PARAM:
             sd = self.parameterAsDate(parameters, "START_DATE", context); sd = sd.date() if hasattr(sd, "date") else sd
             ed = self.parameterAsDate(parameters, "END_DATE", context);   ed = ed.date() if hasattr(ed, "date") else ed
@@ -158,7 +152,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException("Start date must be before end date.")
         s = sd_q.toString("yyyy-MM-dd"); e = ed_q.toString("yyyy-MM-dd")
 
-        # Other params
         cloud = max(0, min(100, int(self.parameterAsDouble(parameters, "CLOUD_COVER", context))))
         formula = (self.parameterAsString(parameters, "FORMULA", context) or "").strip()
         band1 = (self.parameterAsString(parameters, "BAND1", context) or "").strip()
@@ -185,7 +178,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             except Exception:
                 workers = 1
 
-        # Output dir + log path
         out_base = (self.parameterAsString(parameters, "OUTPUT_FOLDER", context) or "").strip()
         if not out_base:
             out_base = getattr(context, "temporaryFolder", lambda: None)() or QgsProcessingUtils.tempFolder()
@@ -193,7 +185,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         os.makedirs(out_dir, exist_ok=True)
         log_path = os.path.join(out_dir, "runtime.log")
 
-        # Route GDAL debug into this file too (if virtughan/GDAL emits anything)
         os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
         os.environ.setdefault("CPL_DEBUG", "ON")
         os.environ["CPL_LOG"] = log_path
@@ -204,7 +195,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
                           f"band1={band1}, band2={band2}, op={operation}, "
                           f"timeseries={ts}, workers={workers}, smart_filter={smart}")
 
-        # Open log & tee stdout/stderr so ANY print/traceback from virtughan is captured
         with open(log_path, "a", encoding="utf-8", buffering=1) as lf:
             tee = _FeedbackTee(lf, feedback)
             with redirect_stdout(tee), redirect_stderr(tee):
@@ -221,7 +211,7 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
                         operation=operation,
                         timeseries=ts,
                         output_dir=out_dir,
-                        log_file=lf,       # virtughan can also write directly here
+                        log_file=lf,
                         cmap="RdYlGn",
                         workers=workers,
                         smart_filter=smart,

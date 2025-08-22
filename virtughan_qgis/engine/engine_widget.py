@@ -29,7 +29,6 @@ from qgis.core import (
 )
 from qgis.gui import QgsMapCanvas, QgsMapTool, QgsRubberBand
 
-# Try to import your reusable CommonParamsWidget
 COMMON_IMPORT_ERROR = None
 CommonParamsWidget = None
 try:
@@ -38,7 +37,6 @@ except Exception as _e:
     COMMON_IMPORT_ERROR = _e
     CommonParamsWidget = None
 
-# Import VirtughanProcessor
 VIRTUGHAN_IMPORT_ERROR = None
 VirtughanProcessor = None
 try:
@@ -47,7 +45,6 @@ except Exception as _e:
     VIRTUGHAN_IMPORT_ERROR = _e
     VirtughanProcessor = None
 
-# Load UI
 UI_PATH = os.path.join(os.path.dirname(__file__), "engine_form.ui")
 FORM_CLASS, _ = uic.loadUiType(UI_PATH)
 
@@ -145,7 +142,6 @@ class _VirtughanTask(QgsTask):
         try:
             os.makedirs(self.params["output_dir"], exist_ok=True)
 
-            # Minimal, Processing-like env
             os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
             os.environ.setdefault("CPL_DEBUG", "ON")
             os.environ["CPL_LOG"] = self.log_path
@@ -184,7 +180,6 @@ class _VirtughanTask(QgsTask):
             return False
 
     def finished(self, ok):
-        # back on the main thread
         if self.on_done:
             try:
                 self.on_done(ok, self.exc)
@@ -203,7 +198,6 @@ class _UiLogTailer:
         self._timer.timeout.connect(self._poll_once)
 
     def start(self):
-        # ensure file exists
         try:
             os.makedirs(os.path.dirname(self._path), exist_ok=True)
             open(self._path, "a", encoding="utf-8").close()
@@ -226,7 +220,7 @@ class _UiLogTailer:
                     self._widget.appendPlainText(chunk.rstrip("\n"))
                     self._pos = f.tell()
         except Exception:
-            # swallow polling errors; next tick may succeed
+            
             pass
 
 
@@ -236,28 +230,28 @@ class EngineDockWidget(QDockWidget):
         self.iface = iface
         self.setObjectName("VirtuGhanEngineDock")
 
-        # Inflate UI
+        
         self.ui_root = QWidget(self)
         self._form_owner = FORM_CLASS()
         self._form_owner.setupUi(self.ui_root)
         self.setWidget(self.ui_root)
 
         f = self.ui_root.findChild
-        # Core controls
+        
         self.progressBar        = f(QProgressBar, "progressBar")
         self.runButton          = f(QPushButton,   "runButton")
         self.resetButton        = f(QPushButton,   "resetButton")
         self.helpButton         = f(QPushButton,   "helpButton")
         self.logText            = f(QPlainTextEdit,"logText")
-        # Common host (must exist in .ui)
+        
         self.commonHost         = f(QWidget,       "commonParamsContainer")
-        # AOI
+        
         self.aoiModeCombo       = f(QComboBox,     "aoiModeCombo")
         self.aoiUseCanvasButton = f(QPushButton,   "aoiUseCanvasButton")
         self.aoiStartDrawButton = f(QPushButton,   "aoiStartDrawButton")
         self.aoiClearButton     = f(QPushButton,   "aoiClearButton")
         self.aoiPreviewLabel    = f(QLabel,        "aoiPreviewLabel")
-        # Options / output
+        
         self.opCombo            = f(QComboBox,     "opCombo")
         self.timeseriesCheck    = f(QCheckBox,     "timeseriesCheck")
         self.smartFilterCheck   = f(QCheckBox,     "smartFilterCheck")
@@ -265,7 +259,7 @@ class EngineDockWidget(QDockWidget):
         self.outputPathEdit     = f(QLineEdit,     "outputPathEdit")
         self.outputBrowseButton = f(QPushButton,   "outputBrowseButton")
 
-        # Guard
+        
         critical = {
             "progressBar": self.progressBar, "runButton": self.runButton,
             "resetButton": self.resetButton, "helpButton": self.helpButton,
@@ -282,17 +276,17 @@ class EngineDockWidget(QDockWidget):
             raise RuntimeError(f"Engine UI missing widgets: {', '.join(missing)}. "
                                f"Make sure engine_form.ui names match the code.")
 
-        # Embed the CommonParamsWidget (or fallback)
+        
         self._init_common_widget()
 
-        # Initial UI state
+        
         self.progressBar.setVisible(False)
-        # Align with your updated UI defaults
+        
         self.workersSpin.setMinimum(1)
         if self.workersSpin.value() < 1:
             self.workersSpin.setValue(1)
 
-        # Wire buttons
+        
         self.aoiUseCanvasButton.clicked.connect(self._use_canvas_extent)
         self.aoiStartDrawButton.clicked.connect(self._start_draw_aoi)
         self.aoiClearButton.clicked.connect(self._clear_aoi)
@@ -303,18 +297,17 @@ class EngineDockWidget(QDockWidget):
         self.runButton.clicked.connect(self._run_clicked)
         self.helpButton.clicked.connect(self._open_help)
 
-        # AOI state
+        
         self._aoi_bbox = None
         self._aoi_tool = None
         self._update_aoi_preview()
         self._aoi_mode_changed(self.aoiModeCombo.currentText())
 
-        # Log tailer state
+        
         self._tailer = None
         self._current_task = None
         self._current_log_path = None
 
-    # ---------- Common panel ----------
     def _init_common_widget(self):
         host = self.commonHost
         v = QVBoxLayout(host); v.setContentsMargins(0, 0, 0, 0)
@@ -335,7 +328,7 @@ class EngineDockWidget(QDockWidget):
             v.addWidget(self._common)
             _log(self, "Using CommonParamsWidget.", Qgis.Info)
         else:
-            # Minimal fallback form
+            
             fb = QWidget(host)
             form = QFormLayout(fb)
             self.fb_start = QDateEdit(fb); self.fb_start.setCalendarPopup(True); self.fb_start.setDate(QDate.currentDate().addMonths(-1))
@@ -366,7 +359,6 @@ class EngineDockWidget(QDockWidget):
             "formula": self.fb_formula.text().strip(),
         }
 
-    # ---------- Helpers ----------
     def _open_help(self):
         try:
             self.iface.openURL("https://example.com/virtughan-docs")
@@ -379,7 +371,7 @@ class EngineDockWidget(QDockWidget):
             self.outputPathEdit.setText(path)
 
     def _reset_form(self):
-        # Reset common
+        
         if self._common is not None:
             try:
                 self._common.set_defaults(
@@ -405,7 +397,7 @@ class EngineDockWidget(QDockWidget):
 
         self._aoi_bbox = None
         self._update_aoi_preview()
-        self.opCombo.setCurrentIndex(7)          # 'none'
+        self.opCombo.setCurrentIndex(7)          
         self.timeseriesCheck.setChecked(False)
         self.smartFilterCheck.setChecked(False)
         self.workersSpin.setMinimum(1)
@@ -414,7 +406,7 @@ class EngineDockWidget(QDockWidget):
         self.outputPathEdit.clear()
         self.logText.clear()
 
-    # ---------- AOI handling ----------
+    
     def _aoi_mode_changed(self, text: str):
         t = (text or "").lower()
         self.aoiUseCanvasButton.setEnabled("extent" in t)
@@ -464,7 +456,7 @@ class EngineDockWidget(QDockWidget):
         else:
             self.aoiPreviewLabel.setText("<i>AOI: not set yet</i>")
 
-    # ---------- Collect params ----------
+    
     def _collect_params(self):
         if VirtughanProcessor is None:
             raise RuntimeError(f"VirtughanProcessor import failed: {VIRTUGHAN_IMPORT_ERROR}")
@@ -474,7 +466,7 @@ class EngineDockWidget(QDockWidget):
             raise RuntimeError(f"AOI bbox does not look like EPSG:4326: {self._aoi_bbox}")
 
         p = self._get_common_params()
-        # basic checks
+        
         sdt = QDate.fromString(p["start_date"], "yyyy-MM-dd")
         edt = QDate.fromString(p["end_date"], "yyyy-MM-dd")
         if not sdt.isValid() or not edt.isValid():
@@ -511,7 +503,7 @@ class EngineDockWidget(QDockWidget):
             output_dir=out_dir,
         )
 
-    # ---------- Log tailing ----------
+    
     def _start_tailing(self, log_path: str):
         self._current_log_path = log_path
         self._tailer = _UiLogTailer(log_path, self.logText, interval_ms=400)
@@ -523,7 +515,7 @@ class EngineDockWidget(QDockWidget):
             self._tailer = None
         self._current_log_path = None
 
-    # ---------- Run (background via QgsTask) ----------
+    
     def _run_clicked(self):
         try:
             params = self._collect_params()
@@ -542,7 +534,7 @@ class EngineDockWidget(QDockWidget):
         _log(self, f"Output: {out_dir}")
         _log(self, f"Log file: {log_path}")
 
-        # Create an empty log file so the tailer has something to open
+        
         try:
             open(log_path, "a", encoding="utf-8").close()
         except Exception:
@@ -552,14 +544,14 @@ class EngineDockWidget(QDockWidget):
         self._start_tailing(log_path)
 
         def _on_done(ok, exc):
-            # stop tailing first so we don't race with file close
+            
             self._stop_tailing()
             self._set_running(False)
             if not ok or exc:
                 _log(self, f"Engine failed: {exc}", Qgis.Critical)
                 QMessageBox.critical(self, "VirtuGhan", f"Engine failed:\n{exc}\n\nSee runtime.log for details.")
             else:
-                # Auto-load rasters
+                
                 added = 0
                 for root, _dirs, files in os.walk(out_dir):
                     for fn in files:
@@ -576,7 +568,7 @@ class EngineDockWidget(QDockWidget):
                     _log(self, "No .tif/.tiff/.vrt files found to load.")
                 QMessageBox.information(self, "VirtuGhan", f"Engine finished.\nOutput: {out_dir}")
 
-        # Launch background task
+        
         self._current_task = _VirtughanTask("VirtuGhan Engine", params, log_path, on_done=_on_done)
         QgsApplication.taskManager().addTask(self._current_task)
 

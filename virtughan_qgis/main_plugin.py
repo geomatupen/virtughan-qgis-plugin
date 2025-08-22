@@ -6,13 +6,11 @@ from qgis.PyQt.QtWidgets import QAction, QMessageBox
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsApplication
 
-# Path setup for vendored libs (optional if you include libs/ folder)
 PLUGIN_DIR = os.path.dirname(__file__)
 LIBS_DIR = os.path.join(PLUGIN_DIR, "libs")
 if os.path.isdir(LIBS_DIR) and LIBS_DIR not in sys.path:
     sys.path.insert(0, LIBS_DIR)
 
-# Bootstrap for installing virtughan automatically if missing
 try:
     from .bootstrap import ensure_virtughan_installed
 except Exception:
@@ -62,7 +60,6 @@ class VirtuGhanPlugin:
                 "VirtuGhan",
                 f"VirtuGhan plugin could not initialize:\n\n{self._last_import_error}"
             )
-            # Add disabled actions to menu
             self.action_engine = QAction("VirtuGhan • Engine (unavailable)", self.iface.mainWindow())
             self.action_engine.setEnabled(False)
             self.action_extractor = QAction("VirtuGhan • Extractor (unavailable)", self.iface.mainWindow())
@@ -71,26 +68,21 @@ class VirtuGhanPlugin:
             self.iface.addPluginToMenu("VirtuGhan", self.action_extractor)
             return
 
-        # Engine QAction
         self.action_engine = QAction("VirtuGhan • Engine", self.iface.mainWindow())
         self.action_engine.triggered.connect(self.show_engine)
         self.iface.addPluginToMenu("VirtuGhan", self.action_engine)
         self.iface.addToolBarIcon(self.action_engine)
 
-        # Extractor QAction
         self.action_extractor = QAction("VirtuGhan • Extractor", self.iface.mainWindow())
         self.action_extractor.triggered.connect(self.show_extractor)
         self.iface.addPluginToMenu("VirtuGhan", self.action_extractor)
         self.iface.addToolBarIcon(self.action_extractor)
 
-        # Tiler QAction
         self.action_tiler = QAction("VirtuGhan • Tiler", self.iface.mainWindow())
         self.action_tiler.triggered.connect(self.show_tiler)
         self.iface.addPluginToMenu("VirtuGhan", self.action_tiler)
         self.iface.addToolBarIcon(self.action_tiler)
 
-
-        # Register processing provider
         try:
             self.provider = self._VirtuGhanProcessingProvider()
             QgsApplication.processingRegistry().addProvider(self.provider)
@@ -102,7 +94,6 @@ class VirtuGhanPlugin:
             )
 
     def unload(self):
-        # Remove Engine action and dock
         if self.action_engine:
             self.iface.removePluginMenu("VirtuGhan", self.action_engine)
             self.iface.removeToolBarIcon(self.action_engine)
@@ -111,7 +102,6 @@ class VirtuGhanPlugin:
             self.iface.removeDockWidget(self.engine_dock)
             self.engine_dock = None
 
-        # Remove Extractor action and dock
         if self.action_extractor:
             self.iface.removePluginMenu("VirtuGhan", self.action_extractor)
             self.iface.removeToolBarIcon(self.action_extractor)
@@ -120,7 +110,6 @@ class VirtuGhanPlugin:
             self.iface.removeDockWidget(self.extractor_dock)
             self.extractor_dock = None
 
-        # Remove Tiler action and dock
         if self.action_tiler:
             self.iface.removePluginMenu("VirtuGhan", self.action_tiler)
             self.iface.removeToolBarIcon(self.action_tiler)
@@ -129,8 +118,6 @@ class VirtuGhanPlugin:
             self.iface.removeDockWidget(self.tiler_dock)
             self.tiler_dock = None
 
-
-        # Remove provider
         if self.provider:
             try:
                 QgsApplication.processingRegistry().removeProvider(self.provider)
@@ -138,7 +125,6 @@ class VirtuGhanPlugin:
                 pass
             self.provider = None
 
-    # Show dock widgets
     def show_engine(self):
         if not self._imports_ready and not self._ensure_deps_and_imports():
             QMessageBox.critical(
