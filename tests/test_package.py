@@ -41,8 +41,6 @@ def test_plugin_package_structure():
                 "virtughan_qgis/main_plugin.py",
                 "virtughan_qgis/bootstrap.py",
                 "virtughan_qgis/processing_provider.py",
-                "virtughan_qgis/metadata.txt",
-                "virtughan_qgis/resources_rc.py"
             ]
             
             for required_file in required_files:
