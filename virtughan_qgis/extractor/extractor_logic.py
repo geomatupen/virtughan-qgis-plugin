@@ -9,15 +9,10 @@ from qgis.core import (
     QgsProcessingParameterFolderDestination, QgsProcessingUtils,
     QgsProcessingException, QgsProject, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
     QgsRasterLayer)
-from qgis.PyQt.QtCore import QDate, Qt
 
-# Import your ExtractProcessor
-from vcube.extract import ExtractProcessor
-
-# Try to import ExtractProcessor
 EXTRACTOR_IMPORT_ERROR = None
 try:
-    from vcube.extract import ExtractProcessor
+    from virtughan.extract import ExtractProcessor
 except Exception as e:
     ExtractProcessor = None
     EXTRACTOR_IMPORT_ERROR = e
@@ -82,7 +77,7 @@ class VirtuGhanExtractorAlgorithm(QgsProcessingAlgorithm):
             "CLOUD_COVER", "Max cloud cover (%)",
             type=QgsProcessingParameterNumber.Integer, defaultValue=30, minValue=0, maxValue=100))
 
-        # Comma-separated bands
+        
         self.addParameter(QgsProcessingParameterString(
             "BANDS_LIST", "Bands to extract (comma-separated from VALID_BANDS)",
             defaultValue="red,nir"))
@@ -109,7 +104,7 @@ class VirtuGhanExtractorAlgorithm(QgsProcessingAlgorithm):
         if ExtractProcessor is None:
             raise QgsProcessingException(f"ExtractProcessor import failed: {EXTRACTOR_IMPORT_ERROR}")
 
-        # AOI
+        
         extent = self.parameterAsExtent(parameters, "EXTENT", context)
         try:
             src_crs = self.parameterAsExtentCrs(parameters, "EXTENT", context)
@@ -118,7 +113,7 @@ class VirtuGhanExtractorAlgorithm(QgsProcessingAlgorithm):
         bbox = _extent_to_wgs84_bbox(extent, src_crs)
         feedback.pushInfo(f"AOI (EPSG:4326): {bbox}")
 
-        # Dates
+        
         sd_q = _coerce_to_qdate(self.parameterAsString(parameters, "START_DATE", context))
         ed_q = _coerce_to_qdate(self.parameterAsString(parameters, "END_DATE", context))
         if not sd_q.isValid() or not ed_q.isValid():
@@ -127,7 +122,7 @@ class VirtuGhanExtractorAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException("Start date must be before end date.")
         s = sd_q.toString("yyyy-MM-dd"); e = ed_q.toString("yyyy-MM-dd")
 
-        # Other params
+        
         cloud = max(0, min(100, int(self.parameterAsDouble(parameters, "CLOUD_COVER", context))))
         bands_csv = (self.parameterAsString(parameters, "BANDS_LIST", context) or "").strip()
         bands_list = [b.strip() for b in bands_csv.split(",") if b.strip()]
@@ -177,7 +172,7 @@ class VirtuGhanExtractorAlgorithm(QgsProcessingAlgorithm):
                     print(traceback.format_exc(), flush=True)
                     raise QgsProcessingException("ExtractProcessor.extract() failed – see runtime.log for details.")
 
-        # Auto-load rasters
+        
         loaded = []
         for root, _dirs, files in os.walk(out_dir):
             for fn in files:

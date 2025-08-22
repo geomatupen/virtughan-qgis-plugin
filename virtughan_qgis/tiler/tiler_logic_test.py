@@ -2,7 +2,7 @@ import sys
 import os
 import numpy as np
 from PIL import Image
-from vcube.tile import TileProcessor 
+from virtughan.tile import TileProcessor 
 
 
 def test_tileprocessor_colormap():

@@ -7,9 +7,9 @@ def load_bands_meta():
     Try vendored JSON first, else package resource via importlib.resources.
     Returns dict or None.
     """
-    # vendored path
+    
     here = os.path.dirname(__file__)
-    vendored = os.path.join(os.path.dirname(here), "libs", "vcube", "data", "sentinel-2-bands.json")
+    vendored = os.path.join(os.path.dirname(here), "libs", "virtughan", "data", "sentinel-2-bands.json")
     if os.path.exists(vendored):
         try:
             with open(vendored, "r") as f:
@@ -17,10 +17,10 @@ def load_bands_meta():
         except Exception:
             pass
 
-    # installed package resource
+    
     try:
         import importlib.resources as resources
-        with resources.as_file(resources.files("vcube").joinpath("data/sentinel-2-bands.json")) as p:
+        with resources.as_file(resources.files("virtughan").joinpath("data/sentinel-2-bands.json")) as p:
             if p.exists():
                 with open(p, "r") as f:
                     return json.load(f)
@@ -37,7 +37,7 @@ def populate_band_combos(band1_combo, band2_combo, bands_meta=None):
     bands = list(bands_meta.keys()) if bands_meta else default_band_list()
     band1_combo.clear(); band2_combo.clear()
     band1_combo.addItems(bands)
-    band2_combo.addItems([""] + bands)  # allow empty
+    band2_combo.addItems([""] + bands)  
 
 def check_resolution_warning(bands_meta, band1, band2):
     """

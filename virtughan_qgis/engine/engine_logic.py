@@ -11,21 +11,19 @@ from qgis.core import (
     QgsRasterLayer,
 )
 
-# Optional Date parameter (QGIS 3.34 compatibility)
 try:
-    from qgis.core import QgsProcessingParameterDate  # type: ignore
+    from qgis.core import QgsProcessingParameterDate
     HAVE_DATE_PARAM = True
 except Exception:
-    QgsProcessingParameterDate = None  # type: ignore
+    QgsProcessingParameterDate = None
     HAVE_DATE_PARAM = False
 
-# Backend
-VCUBE_IMPORT_ERROR = None
+VIRTUGHAN_IMPORT_ERROR = None
 try:
-    from vcube.engine import VCubeProcessor
+    from virtughan.engine import VirtughanProcessor
 except Exception as e:
-    VCubeProcessor = None  # type: ignore
-    VCUBE_IMPORT_ERROR = e
+    VirtughanProcessor = None
+    VIRTUGHAN_IMPORT_ERROR = e
 
 
 def _coerce_to_qdate(val) -> QDate:
@@ -34,11 +32,10 @@ def _coerce_to_qdate(val) -> QDate:
     s = "" if val is None else str(val).strip()
     if not s:
         return QDate()
-    return QDate.fromString(s, Qt.ISODate)  # YYYY-MM-DD
+    return QDate.fromString(s, Qt.ISODate)
 
 
 def _extent_to_wgs84_bbox(extent, src_crs):
-    """Transform a QgsRectangle in src_crs to EPSG:4326 bbox [minLon,minLat,maxLon,maxLat]."""
     wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
     if not src_crs or not src_crs.isValid() or src_crs == wgs84:
         bbox = [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
@@ -53,10 +50,6 @@ def _extent_to_wgs84_bbox(extent, src_crs):
 
 
 class _FeedbackTee(io.TextIOBase):
-    """
-    Tee text stream to a file + Processing feedback.
-    Buffers until newline so feedback gets whole lines.
-    """
     def __init__(self, file_obj, feedback):
         self.file = file_obj
         self.feedback = feedback
@@ -65,10 +58,8 @@ class _FeedbackTee(io.TextIOBase):
     def write(self, s):
         if not s:
             return 0
-        # write to file immediately
         self.file.write(s)
         self.file.flush()
-        # buffer for feedback
         self._buf += s
         while "\n" in self._buf:
             line, self._buf = self._buf.split("\n", 1)
@@ -117,7 +108,7 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             defaultValue="nir", optional=True))
         self.addParameter(QgsProcessingParameterEnum(
             "OPERATION", "Aggregation",
-            options=["mean","median","max","min","std","sum","var","none"], defaultValue=7))  # default 'none'
+            options=["mean","median","max","min","std","sum","var","none"], defaultValue=7))
         self.addParameter(QgsProcessingParameterBoolean(
             "TIMESERIES", "Generate timeseries (GIF)", defaultValue=False))
         self.addParameter(QgsProcessingParameterBoolean(
@@ -129,17 +120,16 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             "OUTPUT_FOLDER", "Output folder (blank = temp)", optional=True))
 
     def name(self): return "virtughan_engine"
-    def displayName(self): return "VirtuGhan Engine (VCube)"
+    def displayName(self): return "VirtuGhan Engine"
     def group(self): return "VirtuGhan"
     def groupId(self): return "virtughan"
-    def shortHelpString(self): return "Run VirtuGhan Engine (VCubeProcessor) from the Processing Toolbox."
+    def shortHelpString(self): return "Run VirtuGhan Engine from the Processing Toolbox."
     def createInstance(self): return VirtuGhanEngineAlgorithm()
 
     def processAlgorithm(self, parameters, context, feedback):
-        if VCUBE_IMPORT_ERROR:
-            raise QgsProcessingException(f"VCubeProcessor import failed: {VCUBE_IMPORT_ERROR}")
+        if VIRTUGHAN_IMPORT_ERROR:
+            raise QgsProcessingException(f"VirtughanProcessor import failed: {VIRTUGHAN_IMPORT_ERROR}")
 
-        # AOI → EPSG:4326
         extent = self.parameterAsExtent(parameters, "EXTENT", context)
         try:
             src_crs = self.parameterAsExtentCrs(parameters, "EXTENT", context)
@@ -148,7 +138,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         bbox = _extent_to_wgs84_bbox(extent, src_crs)
         feedback.pushInfo(f"AOI (EPSG:4326): {bbox}")
 
-        # Dates
         if HAVE_DATE_PARAM:
             sd = self.parameterAsDate(parameters, "START_DATE", context); sd = sd.date() if hasattr(sd, "date") else sd
             ed = self.parameterAsDate(parameters, "END_DATE", context);   ed = ed.date() if hasattr(ed, "date") else ed
@@ -163,7 +152,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             raise QgsProcessingException("Start date must be before end date.")
         s = sd_q.toString("yyyy-MM-dd"); e = ed_q.toString("yyyy-MM-dd")
 
-        # Other params
         cloud = max(0, min(100, int(self.parameterAsDouble(parameters, "CLOUD_COVER", context))))
         formula = (self.parameterAsString(parameters, "FORMULA", context) or "").strip()
         band1 = (self.parameterAsString(parameters, "BAND1", context) or "").strip()
@@ -179,7 +167,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         ts = self.parameterAsBool(parameters, "TIMESERIES", context)
         smart = self.parameterAsBool(parameters, "SMART_FILTER", context)
 
-        # If timeseries is False, require an operation (like your API)
         if ts is False and operation is None:
             raise QgsProcessingException("Operation is required when 'Generate timeseries' is disabled.")
 
@@ -191,7 +178,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
             except Exception:
                 workers = 1
 
-        # Output dir + log path
         out_base = (self.parameterAsString(parameters, "OUTPUT_FOLDER", context) or "").strip()
         if not out_base:
             out_base = getattr(context, "temporaryFolder", lambda: None)() or QgsProcessingUtils.tempFolder()
@@ -199,7 +185,6 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
         os.makedirs(out_dir, exist_ok=True)
         log_path = os.path.join(out_dir, "runtime.log")
 
-        # Route GDAL debug into this file too (if vcube/GDAL emits anything)
         os.environ.setdefault("GDAL_HTTP_TIMEOUT", "30")
         os.environ.setdefault("CPL_DEBUG", "ON")
         os.environ["CPL_LOG"] = log_path
@@ -210,13 +195,12 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
                           f"band1={band1}, band2={band2}, op={operation}, "
                           f"timeseries={ts}, workers={workers}, smart_filter={smart}")
 
-        # Open log & tee stdout/stderr so ANY print/traceback from vcube is captured
         with open(log_path, "a", encoding="utf-8", buffering=1) as lf:
             tee = _FeedbackTee(lf, feedback)
             with redirect_stdout(tee), redirect_stderr(tee):
                 try:
                     print("Starting compute() …", flush=True)
-                    proc = VCubeProcessor(
+                    proc = VirtughanProcessor(
                         bbox=bbox,
                         start_date=s,
                         end_date=e,
@@ -227,21 +211,20 @@ class VirtuGhanEngineAlgorithm(QgsProcessingAlgorithm):
                         operation=operation,
                         timeseries=ts,
                         output_dir=out_dir,
-                        log_file=lf,       # vcube can also write directly here
+                        log_file=lf,
                         cmap="RdYlGn",
                         workers=workers,
                         smart_filter=smart,
                     )
-                    print("[checkpoint] entering VCubeProcessor.compute()", flush=True)
+                    print("[checkpoint] entering VirtughanProcessor.compute()", flush=True)
                     proc.compute()
-                    print("[checkpoint] exited VCubeProcessor.compute()", flush=True)
+                    print("[checkpoint] exited VirtughanProcessor.compute()", flush=True)
                     print("compute() finished.", flush=True)
                 except Exception:
                     print("[exception]", flush=True)
                     print(traceback.format_exc(), flush=True)
-                    raise QgsProcessingException("VCubeProcessor.compute() failed – see runtime.log for details.")
+                    raise QgsProcessingException("VirtughanProcessor.compute() failed – see runtime.log for details.")
 
-        # --- AUTO-LOAD all rasters in output folder into the map ----------------
         loaded = []
         for root, _dirs, files in os.walk(out_dir):
             for fn in files:
