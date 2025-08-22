@@ -86,3 +86,96 @@ def ensure_virtughan_installed(parent=None, quiet=True):
         )
 
     return False
+import importlib
+import subprocess
+import sys
+from qgis.PyQt.QtWidgets import QMessageBox, QTextEdit, QDialog, QVBoxLayout, QPushButton, QProgressDialog
+from qgis.PyQt.QtCore import Qt
+
+def _try_install():
+    """Try simple installation methods"""
+    install_commands = [
+        [sys.executable, "-m", "pip", "install", "virtughan"],
+        [sys.executable, "-m", "pip", "install", "virtughan", "--break-system-packages"],
+        ["python3", "-m", "pip", "install", "virtughan", "--break-system-packages"],
+        ["pip", "install", "virtughan", "--break-system-packages"],
+        ["pip", "install", "virtughan", "--user"]
+    ]
+    
+    for cmd in install_commands:
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=60)
+            if result.returncode == 0:
+                return True
+        except Exception:
+            continue
+    
+    return False
+
+def ensure_virtughan(parent=None):
+    try:
+        importlib.import_module("virtughan")
+        return True
+    except ImportError:
+        pass
+    
+    from qgis.PyQt.QtWidgets import QMessageBox
+    
+    reply = QMessageBox.question(
+        parent,
+        "Install VirtuGhan?",
+        "VirtuGhan package not found. Try automatic installation?",
+        QMessageBox.Yes | QMessageBox.No,
+        QMessageBox.Yes
+    )
+    
+    if reply == QMessageBox.Yes:
+        dlg = QProgressDialog("Installing VirtuGhan...", "", 0, 0, parent)
+        dlg.setWindowModality(Qt.NonModal)
+        dlg.setCancelButton(None)
+        dlg.show()
+        
+        success = _try_install()
+        dlg.close()
+        
+        if success:
+            try:
+                importlib.import_module("virtughan")
+                QMessageBox.information(parent, "Success", "VirtuGhan installed successfully!")
+                return True
+            except ImportError:
+                pass
+    
+    dialog = QDialog(parent)
+    dialog.setWindowTitle("Manual Installation Required")
+    dialog.setMinimumSize(600, 350)
+    
+    layout = QVBoxLayout()
+    
+    instruction_text = """Automatic installation failed. Please install manually:
+
+METHOD 1 - Terminal/Command Prompt:
+python3 -m pip install virtughan --break-system-packages
+
+METHOD 2 - Alternative:
+pip install virtughan --break-system-packages
+
+METHOD 3 - Windows OSGeo4W Shell:
+python -m pip install virtughan
+
+After installation, restart QGIS and try again.
+"""
+    
+    text_edit = QTextEdit()
+    text_edit.setPlainText(instruction_text)
+    text_edit.setReadOnly(True)
+    layout.addWidget(text_edit)
+    
+    ok_button = QPushButton("OK")
+    ok_button.clicked.connect(dialog.accept)
+    layout.addWidget(ok_button)
+    
+    dialog.setLayout(layout)
+    dialog.exec_()
+    
+    return False
