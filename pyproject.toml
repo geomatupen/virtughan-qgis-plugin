@@ -1,9 +1,53 @@
 [project]
 name = "virtughan-qgis-plugin"
 version = "0.1.0"
-description = "Add your description here"
+description = "QGIS plugin with Extractor, Tiler, and Engine functionalities"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "GPL-3.0"}
+authors = [
+    {name = "Upendra Oli", email = "upendra.oli59@gmail.com"},
+    {name = "Kshitij Raj Sharma"},
+    {name = "Sahar Mohamed"},
+]
+keywords = ["qgis", "plugin", "satellite", "remote-sensing", "geospatial"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: GIS",
+]
 dependencies = [
     "virtughan>=0.7.0",
 ]
+
+[project.urls]
+Homepage = "https://virtughan.live/"
+Repository = "https://github.com/geomatupen/virtughan-qgis-plugin"
+Issues = "https://github.com/geomatupen/virtughan-qgis-plugin/issues"
+
+[dependency-groups]
+dev = [
+    "commitizen>=4.8.3",
+]
+
+[tool.qgis-plugin]
+name = "VirtuGhan QGIS Plugin"
+description = "QGIS plugin with Extractor, Tiler, and Engine functionalities"
+about = "Plugin to run Extractor, Tiler, and Engine workflows for earth observation data. Download and analyze sentinel2 images with virtual datacube"
+qgis_minimum_version = "3.22"
+category = "Analysis"
+icon = "static/images/virtughan-logo.png"
+experimental = false
+deprecated = false
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_type = "semver"
+version_provider = "pep621"
+update_changelog_on_bump = true
