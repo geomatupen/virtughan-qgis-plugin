@@ -1871,7 +1871,7 @@ wheels = [
 
 [[package]]
 name = "virtughan"
-version = "0.7.0"
+version = "1.0.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiocache" },
@@ -1890,14 +1890,14 @@ dependencies = [
     { name = "tqdm" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/00/c6/1f8c44f66b30da2bee8fda11febcd2e5180df50408906cbd8746f8a6f7c3/virtughan-0.7.0.tar.gz", hash = "sha256:f8907249fa925c2d78489ae797cf2793b577292e4baf11b64f8ba88ee8e1b63c", size = 31801 }
+sdist = { url = "https://files.pythonhosted.org/packages/b0/73/2175422946563f36596f28b2407473b6cbd31a1396baeb130ea64b2bc02f/virtughan-1.0.1.tar.gz", hash = "sha256:dec93b5cba104cceda520e23190ffe23305670431f48a4029140968afddbf774", size = 31738 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/55/48/15144c536e344c7aa98152e29a4e7614d31a442c682a3eafa26e8ed2fd29/virtughan-0.7.0-py3-none-any.whl", hash = "sha256:1d68131fb346d6704d7102ad96c77169926af1ab04756c2d00bf7ddbb7d4c53e", size = 31899 },
+    { url = "https://files.pythonhosted.org/packages/eb/e3/3dfd22885e1f1ee33da9886206989b2e4a66935d99c92876460f76afd551/virtughan-1.0.1-py3-none-any.whl", hash = "sha256:6b7233ecfac3e78df1db1a54de506a8731d1226edb73c463815cf0b6cad22e44", size = 31912 },
 ]
 
 [[package]]
 name = "virtughan-qgis-plugin"
-version = "0.1.0"
+version = "0.2.0"
 source = { virtual = "." }
 dependencies = [
     { name = "virtughan" },
@@ -1909,7 +1909,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "virtughan", specifier = ">=0.7.0" }]
+requires-dist = [{ name = "virtughan", specifier = ">=1.0.1" }]
 
 [package.metadata.requires-dev]
 dev = [{ name = "commitizen", specifier = ">=4.8.3" }]

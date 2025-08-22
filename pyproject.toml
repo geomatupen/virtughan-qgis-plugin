@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: GIS",
 ]
 dependencies = [
-    "virtughan>=0.7.0",
+    "virtughan>=1.0.1",
 ]
 
 [project.urls]
