@@ -19,8 +19,8 @@ A QGIS plugin that integrates [VirtuGhan](https://pypi.org/project/virtughan/) c
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/geomatupen/virtughan-qgis-plugin.git
-cd virtughan-qgis-plugin
+git clone https://github.com/virtughan/qgis-plugin.git
+cd qgis-plugin
 ```
 
 2. Set up development environment with uv:
