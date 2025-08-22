@@ -1,0 +1,56 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Build plugin
+        run: ./build.sh
+
+      - name: Get tag name
+        id: get_tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/virtughan-qgis-plugin.zip
+          body: |
+            ### Installation
+
+            1. Download `virtughan-qgis-plugin.zip` from the assets below
+            2. In QGIS, go to `Plugins > Manage and Install Plugins > Install from ZIP`
+            3. Select the downloaded zip file
+
+            ### Features
+
+            - **Tiler**: Real-time satellite tile visualization
+            - **Engine**: Process and analyze satellite imagery  
+            - **Extractor**: Bulk download satellite data
+
+            For more information, visit [virtughan.live](https://virtughan.live/)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
