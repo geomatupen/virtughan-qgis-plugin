@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ExtractorForm</class>
+ <widget class="QWidget" name="ExtractorForm">
+  <property name="windowTitle">
+   <string>VirtuGhan • Extractor</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_root">
+
+   <!-- Header -->
+   <item>
+    <layout class="QHBoxLayout" name="headerLayout">
+     <item>
+      <widget class="QLabel" name="titleLabel">
+       <property name="text">
+        <string>&lt;b&gt;VirtuGhan Extractor&lt;/b&gt;</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="headerSpacer">
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0">
+        <size><width>40</width><height>20</height></size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="helpButton">
+       <property name="text"><string>Help</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <!-- Tabs -->
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex"><number>0</number></property>
+
+     <!-- Basics tab -->
+     <widget class="QWidget" name="tabBasics">
+      <attribute name="title"><string>Basics</string></attribute>
+      <layout class="QVBoxLayout" name="basicsLayout">
+
+       <!-- Common Parameters -->
+       <item>
+        <widget class="QGroupBox" name="groupCommon">
+         <property name="title"><string>Common Parameters</string></property>
+         <layout class="QVBoxLayout" name="layoutCommon">
+          <item>
+           <widget class="QWidget" name="commonParamsContainer"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Extractor Parameters -->
+       <item>
+        <widget class="QGroupBox" name="groupExtractorParams">
+         <property name="title"><string>Extractor Parameters</string></property>
+         <layout class="QGridLayout" name="gridExtractor">
+
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelBands">
+            <property name="text"><string>Bands to extract</string></property>
+           </widget>
+          </item>
+          <item row="0" column="1" colspan="3">
+           <widget class="QListWidget" name="bandsListWidget">
+            <property name="selectionMode"><enum>QAbstractItemView::MultiSelection</enum></property>
+            <item><property name="text"><string>red</string></property></item>
+            <item><property name="text"><string>green</string></property></item>
+            <item><property name="text"><string>blue</string></property></item>
+            <item><property name="text"><string>nir</string></property></item>
+            <item><property name="text"><string>swir22</string></property></item>
+            <item><property name="text"><string>rededge2</string></property></item>
+            <item><property name="text"><string>rededge3</string></property></item>
+            <item><property name="text"><string>rededge1</string></property></item>
+            <item><property name="text"><string>swir16</string></property></item>
+            <item><property name="text"><string>wvp</string></property></item>
+            <item><property name="text"><string>nir08</string></property></item>
+            <item><property name="text"><string>aot</string></property></item>
+            <item><property name="text"><string>coastal</string></property></item>
+            <item><property name="text"><string>nir09</string></property></item>
+           </widget>
+          </item>
+
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="zipOutputCheck">
+            <property name="text"><string>Zip output</string></property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="smartFilterCheck">
+            <property name="text"><string>Apply smart filter</string></property>
+            <property name="checked"><bool>true</bool></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- AOI -->
+       <item>
+        <widget class="QGroupBox" name="groupAOI">
+         <property name="title"><string>Area of Interest</string></property>
+         <layout class="QGridLayout" name="gridAOI">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelAOIMode">
+            <property name="text"><string>AOI mode</string></property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="aoiModeCombo">
+            <item><property name="text"><string>Map extent</string></property></item>
+            <item><property name="text"><string>Draw polygon</string></property></item>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QPushButton" name="aoiUseCanvasButton">
+            <property name="text"><string>Use Canvas Extent</string></property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QPushButton" name="aoiStartDrawButton">
+            <property name="text"><string>Draw AOI</string></property>
+           </widget>
+          </item>
+          <item row="0" column="4">
+           <widget class="QPushButton" name="aoiClearButton">
+            <property name="text"><string>Clear</string></property>
+           </widget>
+          </item>
+          <item row="1" column="0" colspan="5">
+           <widget class="QLabel" name="aoiPreviewLabel">
+            <property name="text"><string>&lt;i&gt;AOI: not set yet&lt;/i&gt;</string></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Output -->
+       <item>
+        <widget class="QGroupBox" name="groupOutput">
+         <property name="title"><string>Output</string></property>
+         <layout class="QGridLayout" name="gridOutput">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelWorkers">
+            <property name="text"><string>Workers</string></property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="workersSpin">
+            <property name="minimum"><number>1</number></property>
+            <property name="maximum"><number>64</number></property>
+            <property name="value"><number>1</number></property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="labelOut">
+            <property name="text"><string>Output folder</string></property>
+           </widget>
+          </item>
+          <item row="0" column="3" colspan="2">
+           <layout class="QHBoxLayout" name="outLayout">
+            <item>
+             <widget class="QLineEdit" name="outputPathEdit"/>
+            </item>
+            <item>
+             <widget class="QPushButton" name="outputBrowseButton">
+              <property name="text"><string>Browse…</string></property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Run / Progress -->
+       <item>
+        <layout class="QHBoxLayout" name="runLayout">
+         <item>
+          <widget class="QProgressBar" name="progressBar"/>
+         </item>
+         <item>
+          <spacer name="runSpacer">
+           <property name="orientation"><enum>Qt::Horizontal</enum></property>
+           <property name="sizeHint" stdset="0">
+            <size><width>40</width><height>20</height></size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="resetButton">
+           <property name="text"><string>Reset</string></property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="runButton">
+           <property name="text"><string>Run Extractor</string></property>
+           <property name="minimumHeight"><number>30</number></property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+
+       <!-- Log -->
+       <item>
+        <widget class="QGroupBox" name="groupLog">
+         <property name="title"><string>Log</string></property>
+         <layout class="QVBoxLayout" name="verticalLayoutLog">
+          <item>
+           <widget class="QPlainTextEdit" name="logText">
+            <property name="readOnly"><bool>true</bool></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+      </layout>
+     </widget>
+
+     <!-- Advanced tab -->
+     <widget class="QWidget" name="tabAdvanced">
+      <attribute name="title"><string>Advanced</string></attribute>
+      <layout class="QVBoxLayout" name="advancedLayout">
+       <item>
+        <widget class="QLabel" name="advancedNote">
+         <property name="text"><string>&lt;i&gt;Advanced options TBD&lt;/i&gt;</string></property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+
+    </widget>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

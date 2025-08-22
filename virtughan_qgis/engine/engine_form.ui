@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>EngineForm</class>
+ <widget class="QWidget" name="EngineForm">
+  <property name="windowTitle">
+   <string>VirtuGhan • Engine</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout_root">
+
+   <!-- Header -->
+   <item>
+    <layout class="QHBoxLayout" name="headerLayout">
+     <item>
+      <widget class="QLabel" name="titleLabel">
+       <property name="text">
+        <string>&lt;b&gt;VirtuGhan Engine&lt;/b&gt;</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="headerSpacer">
+       <property name="orientation"><enum>Qt::Horizontal</enum></property>
+       <property name="sizeHint" stdset="0">
+        <size><width>40</width><height>20</height></size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="helpButton">
+       <property name="text"><string>Help</string></property>
+       <property name="toolTip"><string>Open documentation</string></property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+
+   <!-- Tabs -->
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex"><number>0</number></property>
+
+     <!-- Basics tab -->
+     <widget class="QWidget" name="tabBasics">
+      <attribute name="title"><string>Basics</string></attribute>
+      <layout class="QVBoxLayout" name="basicsLayout" stretch="0,0,0,0,1">
+
+       <!-- Common Parameters (host only; real fields come from CommonParamsWidget) -->
+       <item>
+        <widget class="QGroupBox" name="groupCommon">
+         <property name="title"><string>Common Parameters</string></property>
+         <layout class="QVBoxLayout" name="layoutCommon">
+          <item>
+           <widget class="QWidget" name="commonParamsContainer"/>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- AOI -->
+       <item>
+        <widget class="QGroupBox" name="groupAOI">
+         <property name="title"><string>Area of Interest</string></property>
+         <layout class="QGridLayout" name="gridAOI">
+
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelAOIMode">
+            <property name="text"><string>AOI mode</string></property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="aoiModeCombo">
+            <item><property name="text"><string>Map extent</string></property></item>
+            <item><property name="text"><string>Draw polygon</string></property></item>
+           </widget>
+          </item>
+
+          <item row="0" column="2">
+           <widget class="QPushButton" name="aoiUseCanvasButton">
+            <property name="text"><string>Use Canvas Extent</string></property>
+            <property name="toolTip"><string>Capture current map canvas extent</string></property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QPushButton" name="aoiStartDrawButton">
+            <property name="text"><string>Draw AOI</string></property>
+            <property name="toolTip"><string>Draw polygon on map (right-click to finish)</string></property>
+           </widget>
+          </item>
+
+          <item row="0" column="4">
+           <widget class="QPushButton" name="aoiClearButton">
+            <property name="text"><string>Clear</string></property>
+            <property name="toolTip"><string>Clear current AOI</string></property>
+           </widget>
+          </item>
+
+          <item row="1" column="0" colspan="5">
+           <widget class="QLabel" name="aoiPreviewLabel">
+            <property name="text"><string>&lt;i&gt;AOI: not set yet&lt;/i&gt;</string></property>
+            <property name="toolTip"><string>Preview (xmin, ymin, xmax, ymax)</string></property>
+           </widget>
+          </item>
+
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Aggregation & Options -->
+       <item>
+        <widget class="QGroupBox" name="groupAgg">
+         <property name="title"><string>Aggregation &amp; Options</string></property>
+         <layout class="QGridLayout" name="gridAgg">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelOp"><property name="text"><string>Aggregation</string></property></widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="opCombo">
+            <!-- Default to "none" (index 7) -->
+            <property name="currentIndex"><number>7</number></property>
+            <item><property name="text"><string>mean</string></property></item>
+            <item><property name="text"><string>median</string></property></item>
+            <item><property name="text"><string>max</string></property></item>
+            <item><property name="text"><string>min</string></property></item>
+            <item><property name="text"><string>std</string></property></item>
+            <item><property name="text"><string>sum</string></property></item>
+            <item><property name="text"><string>var</string></property></item>
+            <item><property name="text"><string>none</string></property></item>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QCheckBox" name="timeseriesCheck">
+            <property name="text"><string>Generate timeseries (GIF)</string></property>
+            <property name="toolTip"><string>Create intermediate results and a GIF</string></property>
+            <!-- Default unchecked -->
+            <property name="checked"><bool>false</bool></property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QCheckBox" name="smartFilterCheck">
+            <property name="text"><string>Apply smart filter</string></property>
+            <property name="toolTip"><string>Reduce scenes by best-per-period</string></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Output -->
+       <item>
+        <widget class="QGroupBox" name="groupOutput">
+         <property name="title"><string>Output</string></property>
+         <layout class="QGridLayout" name="gridOutput">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelWorkers"><property name="text"><string>Workers</string></property></widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="workersSpin">
+            <!-- Min 1, default 1 -->
+            <property name="minimum"><number>1</number></property>
+            <property name="maximum"><number>64</number></property>
+            <property name="value"><number>1</number></property>
+            <property name="toolTip"><string>Number of parallel workers</string></property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="labelOut"><property name="text"><string>Output folder</string></property></widget>
+          </item>
+          <item row="0" column="3" colspan="2">
+           <layout class="QHBoxLayout" name="outLayout">
+            <item>
+             <widget class="QLineEdit" name="outputPathEdit">
+              <property name="placeholderText"><string>Blank = QGIS temp</string></property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="outputBrowseButton">
+              <property name="text"><string>Browse…</string></property>
+              <property name="toolTip"><string>Select destination folder</string></property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+       <!-- Run / Progress -->
+       <item>
+        <layout class="QHBoxLayout" name="runLayout">
+         <item>
+          <widget class="QProgressBar" name="progressBar">
+           <property name="minimum"><number>0</number></property>
+           <property name="maximum"><number>0</number></property>
+           <property name="value"><number>0</number></property>
+           <property name="textVisible"><bool>false</bool></property>
+           <property name="toolTip"><string>Shows while job is running</string></property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="runSpacer">
+           <property name="orientation"><enum>Qt::Horizontal</enum></property>
+           <property name="sizeHint" stdset="0">
+            <size><width>40</width><height>20</height></size>
+           </property>
+          </spacer>
+         </item>
+         <item>
+          <widget class="QPushButton" name="resetButton">
+           <property name="text"><string>Reset</string></property>
+           <property name="toolTip"><string>Clear form and AOI</string></property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="runButton">
+           <property name="text"><string>Run Engine</string></property>
+           <property name="minimumHeight"><number>30</number></property>
+           <property name="toolTip"><string>Start processing</string></property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+
+       <!-- Log -->
+       <item>
+        <widget class="QGroupBox" name="groupLog">
+         <property name="title"><string>Log</string></property>
+         <layout class="QVBoxLayout" name="verticalLayoutLog">
+          <item>
+           <widget class="QPlainTextEdit" name="logText">
+            <property name="readOnly"><bool>true</bool></property>
+            <property name="placeholderText"><string>Status and warnings will appear here…</string></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+      </layout>
+     </widget>
+
+     <!-- Advanced tab (placeholder) -->
+     <widget class="QWidget" name="tabAdvanced">
+      <attribute name="title"><string>Advanced</string></attribute>
+      <layout class="QVBoxLayout" name="advancedLayout">
+       <item>
+        <widget class="QLabel" name="advancedNote">
+         <property name="text">
+          <string>&lt;i&gt;Add advanced options later (e.g., colormap, masking).&lt;/i&gt;</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="advSpacer">
+         <property name="orientation"><enum>Qt::Vertical</enum></property>
+         <property name="sizeHint" stdset="0">
+          <size><width>20</width><height>40</height></size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+
+    </widget>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

@@ -1,0 +1,130 @@
+# virtughan_qgis/tiler/api.py
+# Local FastAPI that serves tiles using the installed 'vcube' package.
+
+import os
+import sys
+import importlib
+import pkgutil
+import inspect
+from datetime import datetime, timedelta
+from typing import Optional, Tuple
+
+import matplotlib
+from fastapi import FastAPI, HTTPException, Query, Response
+from fastapi.responses import JSONResponse
+
+matplotlib.use("Agg")
+
+
+def _find_tileprocessor() -> Tuple[type, str]:
+    """
+    Locate a class named 'TileProcessor' somewhere under vcube.*.
+    Returns (class, 'module:Class') or raises ImportError with a clear message.
+    """
+    try:
+        import vcube  # noqa
+    except Exception as e:
+        raise ImportError(
+            "Cannot import 'vcube' in this QGIS Python. "
+            "Install it into the same interpreter QGIS uses. "
+            f"Underlying error: {e}"
+        )
+
+    import vcube  # type: ignore
+    for m in pkgutil.walk_packages(vcube.__path__, "vcube."):
+        if m.ispkg:
+            continue
+        try:
+            mod = importlib.import_module(m.name)
+        except Exception:
+            continue
+        for name, obj in vars(mod).items():
+            if inspect.isclass(obj) and name == "TileProcessor":
+                return obj, f"{m.name}:{name}"
+
+    # Last-ditch guess (common location)
+    try:
+        from vcube.tile import TileProcessor  # type: ignore
+        return TileProcessor, "vcube.tile:TileProcessor"
+    except Exception:
+        pass
+
+    raise ImportError("TileProcessor not found anywhere under vcube.*.")
+
+
+TileProcessor, TP_path = _find_tileprocessor()
+
+app = FastAPI(title="vcube tiler (QGIS local)")
+processor = TileProcessor(cache_time=60)  # shared instance (typically caches internally)
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok", "python": sys.executable}
+
+
+@app.get("/whoami")
+async def whoami():
+    return {
+        "tileprocessor": TP_path,
+        "processor_type": f"{processor.__class__.__module__}.{processor.__class__.__name__}",
+        "cwd": os.getcwd(),
+    }
+
+
+@app.get("/tile/{z}/{x}/{y}")
+async def get_tile(
+    z: int,
+    x: int,
+    y: int,
+    start_date: str = Query(None),
+    end_date: str = Query(None),
+    cloud_cover: int = Query(30),
+    band1: str = Query("visual", description="visual, red, green, blue, nir, swir1, swir2"),
+    band2: Optional[str] = Query(None),
+    formula: str = Query("band1", description="(band2 - band1)/(band2 + band1) or 'band1' for visual"),
+    colormap_str: str = Query("RdYlGn"),
+    operation: str = Query("median"),
+    timeseries: bool = Query(False),
+):
+    # Match VirtuGhan behavior: limit zooms
+    if z < 10 or z > 23:
+        return JSONResponse(content={"error": "Zoom level must be between 10 and 23"}, status_code=400)
+
+    # Date defaults if not provided
+    if not start_date:
+        start_date = (datetime.utcnow() - timedelta(days=360)).strftime("%Y-%m-%d")
+    if not end_date:
+        end_date = datetime.utcnow().strftime("%Y-%m-%d")
+
+    try:
+        # NOTE: VirtuGhan’s processor typically returns (image_bytes, feature)
+        image_bytes, feature = await processor.cached_generate_tile(
+            x=x,
+            y=y,
+            z=z,
+            start_date=start_date,
+            end_date=end_date,
+            cloud_cover=cloud_cover,
+            band1=band1,
+            band2=(band2 or ""),
+            formula=formula,
+            colormap_str=colormap_str,
+            operation=operation,
+            latest=not timeseries,  # timeseries True => latest False
+        )
+        headers = {}
+        try:
+            props = feature.get("properties", {})
+            if "datetime" in props:
+                headers["X-Image-Date"] = props["datetime"]
+            if "eo:cloud_cover" in props:
+                headers["X-Cloud-Cover"] = str(props["eo:cloud_cover"])
+        except Exception:
+            pass
+        return Response(content=image_bytes, media_type="image/png", headers=headers)
+
+    except HTTPException as he:
+        return JSONResponse(status_code=he.status_code, content={"detail": he.detail})
+    except Exception as ex:
+        return JSONResponse(content={"error": f"Computation Error: {str(ex)}"}, status_code=500)
