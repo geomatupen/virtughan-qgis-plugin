@@ -10,17 +10,25 @@ A QGIS plugin that integrates [VirtuGhan](https://pypi.org/project/virtughan/) c
 
 ## Quick Start
 
+### Environment Management
+
+This project uses [uv](https://docs.astral.sh/uv/) for Python dependency and environment management. You must install uv before setting up the project.
+
+**Install uv first:**
+Follow the installation guide at: https://docs.astral.sh/uv/getting-started/installation/
+
 ### Prerequisites
 
 - QGIS 3.22 or higher
 - Python 3.10+
+- uv (for dependency management)
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/geomatupen/virtughan-qgis-plugin.git
-cd virtughan-qgis-plugin
+git clone https://github.com/virtughan/qgis-plugin.git
+cd qgis-plugin
 ```
 
 2. Set up development environment with uv:
