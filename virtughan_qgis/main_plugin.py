@@ -142,6 +142,7 @@ class VirtuGhanPlugin:
                 pass
             self.provider = None
 
+    # Show dock widgets
     def show_engine(self):
         if not self._imports_ready and not self._ensure_deps_and_imports():
             QMessageBox.critical(
@@ -185,4 +186,6 @@ class VirtuGhanPlugin:
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.tiler_dock)
         self.tiler_dock.show()
         self.tiler_dock.raise_()
+
+        
 
