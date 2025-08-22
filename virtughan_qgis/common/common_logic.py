@@ -9,7 +9,7 @@ def load_bands_meta():
     """
     # vendored path
     here = os.path.dirname(__file__)
-    vendored = os.path.join(os.path.dirname(here), "libs", "vcube", "data", "sentinel-2-bands.json")
+    vendored = os.path.join(os.path.dirname(here), "libs", "virtughan", "data", "sentinel-2-bands.json")
     if os.path.exists(vendored):
         try:
             with open(vendored, "r") as f:
@@ -20,7 +20,7 @@ def load_bands_meta():
     # installed package resource
     try:
         import importlib.resources as resources
-        with resources.as_file(resources.files("vcube").joinpath("data/sentinel-2-bands.json")) as p:
+        with resources.as_file(resources.files("virtughan").joinpath("data/sentinel-2-bands.json")) as p:
             if p.exists():
                 with open(p, "r") as f:
                     return json.load(f)

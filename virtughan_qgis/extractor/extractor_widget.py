@@ -36,7 +36,7 @@ except Exception as _e:
 EXTRACTOR_IMPORT_ERROR = None
 ExtractorBackend = None
 try:
-    from vcube.extract import ExtractProcessor as ExtractorBackend
+    from virtughan.extract import ExtractProcessor as ExtractorBackend
 except Exception as _e:
     EXTRACTOR_IMPORT_ERROR = _e
     ExtractorBackend = None

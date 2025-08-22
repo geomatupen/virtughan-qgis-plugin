@@ -38,14 +38,14 @@ except Exception as _e:
     COMMON_IMPORT_ERROR = _e
     CommonParamsWidget = None
 
-# Import VCubeProcessor
-VCUBE_IMPORT_ERROR = None
-VCubeProcessor = None
+# Import VirtughanProcessor
+VIRTUGHAN_IMPORT_ERROR = None
+VirtughanProcessor = None
 try:
-    from vcube.engine import VCubeProcessor
+    from virtughan.engine import VirtughanProcessor
 except Exception as _e:
-    VCUBE_IMPORT_ERROR = _e
-    VCubeProcessor = None
+    VIRTUGHAN_IMPORT_ERROR = _e
+    VirtughanProcessor = None
 
 # Load UI
 UI_PATH = os.path.join(os.path.dirname(__file__), "engine_form.ui")
@@ -132,8 +132,8 @@ class _AoiDrawTool(QgsMapTool):
         self.points = []
 
 
-class _VCubeTask(QgsTask):
-    """Runs VCubeProcessor.compute() off the UI thread and writes to runtime.log."""
+class _VirtughanTask(QgsTask):
+    """Runs VirtughanProcessor.compute() off the UI thread and writes to runtime.log."""
     def __init__(self, desc, params, log_path, on_done=None):
         super().__init__(desc, QgsTask.CanCancel)
         self.params = params
@@ -151,10 +151,10 @@ class _VCubeTask(QgsTask):
             os.environ["CPL_LOG"] = self.log_path
 
             with open(self.log_path, "a", encoding="utf-8", buffering=1) as logf:
-                logf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Starting VCubeProcessor\n")
+                logf.write(f"[{datetime.now().isoformat(timespec='seconds')}] Starting VirtughanProcessor\n")
                 logf.write(f"Params: {self.params}\n")
 
-                proc = VCubeProcessor(
+                proc = VirtughanProcessor(
                     bbox=self.params["bbox"],
                     start_date=self.params["start_date"],
                     end_date=self.params["end_date"],
@@ -466,8 +466,8 @@ class EngineDockWidget(QDockWidget):
 
     # ---------- Collect params ----------
     def _collect_params(self):
-        if VCubeProcessor is None:
-            raise RuntimeError(f"VCubeProcessor import failed: {VCUBE_IMPORT_ERROR}")
+        if VirtughanProcessor is None:
+            raise RuntimeError(f"VirtughanProcessor import failed: {VIRTUGHAN_IMPORT_ERROR}")
         if not self._aoi_bbox:
             raise RuntimeError("Please set AOI (Use Canvas Extent or Draw AOI) before running.")
         if _bbox_looks_projected(self._aoi_bbox):
@@ -577,7 +577,7 @@ class EngineDockWidget(QDockWidget):
                 QMessageBox.information(self, "VirtuGhan", f"Engine finished.\nOutput: {out_dir}")
 
         # Launch background task
-        self._current_task = _VCubeTask("VirtuGhan Engine", params, log_path, on_done=_on_done)
+        self._current_task = _VirtughanTask("VirtuGhan Engine", params, log_path, on_done=_on_done)
         QgsApplication.taskManager().addTask(self._current_task)
 
     def _set_running(self, running: bool):

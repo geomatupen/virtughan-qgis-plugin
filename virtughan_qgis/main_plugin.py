@@ -5,10 +5,6 @@ import sys
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsApplication
-from .engine.engine_widget import EngineDockWidget
-from .extractor.extractor_widget import ExtractorDockWidget
-from qgis.core import QgsApplication
-from .processing_provider import VirtuGhanProcessingProvider
 
 # Path setup for vendored libs (optional if you include libs/ folder)
 PLUGIN_DIR = os.path.dirname(__file__)
@@ -186,6 +182,3 @@ class VirtuGhanPlugin:
             self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.tiler_dock)
         self.tiler_dock.show()
         self.tiler_dock.raise_()
-
-        
-

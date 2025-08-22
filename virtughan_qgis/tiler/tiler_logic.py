@@ -1,5 +1,5 @@
 from typing import Optional
-from urllib.parse import urlencode, quote  # NOTE: using quote (not quote_plus)
+from urllib.parse import urlencode, quote
 
 from qgis.core import QgsProject, QgsRasterLayer, QgsMessageLog, Qgis
 

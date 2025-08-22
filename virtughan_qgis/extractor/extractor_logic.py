@@ -9,15 +9,11 @@ from qgis.core import (
     QgsProcessingParameterFolderDestination, QgsProcessingUtils,
     QgsProcessingException, QgsProject, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
     QgsRasterLayer)
-from qgis.PyQt.QtCore import QDate, Qt
-
-# Import your ExtractProcessor
-from vcube.extract import ExtractProcessor
 
 # Try to import ExtractProcessor
 EXTRACTOR_IMPORT_ERROR = None
 try:
-    from vcube.extract import ExtractProcessor
+    from virtughan.extract import ExtractProcessor
 except Exception as e:
     ExtractProcessor = None
     EXTRACTOR_IMPORT_ERROR = e

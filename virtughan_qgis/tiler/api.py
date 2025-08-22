@@ -1,5 +1,5 @@
 # virtughan_qgis/tiler/api.py
-# Local FastAPI that serves tiles using the installed 'vcube' package.
+# Local FastAPI that serves tiles using the installed 'virtughan' package.
 
 import os
 import sys
@@ -18,20 +18,20 @@ matplotlib.use("Agg")
 
 def _find_tileprocessor() -> Tuple[type, str]:
     """
-    Locate a class named 'TileProcessor' somewhere under vcube.*.
+    Locate a class named 'TileProcessor' somewhere under virtughan.*.
     Returns (class, 'module:Class') or raises ImportError with a clear message.
     """
     try:
-        import vcube  # noqa
+        import virtughan  # noqa
     except Exception as e:
         raise ImportError(
-            "Cannot import 'vcube' in this QGIS Python. "
+            "Cannot import 'virtughan' in this QGIS Python. "
             "Install it into the same interpreter QGIS uses. "
             f"Underlying error: {e}"
         )
 
-    import vcube  # type: ignore
-    for m in pkgutil.walk_packages(vcube.__path__, "vcube."):
+    import virtughan  # type: ignore
+    for m in pkgutil.walk_packages(virtughan.__path__, "virtughan."):
         if m.ispkg:
             continue
         try:
@@ -44,17 +44,17 @@ def _find_tileprocessor() -> Tuple[type, str]:
 
     # Last-ditch guess (common location)
     try:
-        from vcube.tile import TileProcessor  # type: ignore
-        return TileProcessor, "vcube.tile:TileProcessor"
+        from virtughan.tile import TileProcessor  # type: ignore
+        return TileProcessor, "virtughan.tile:TileProcessor"
     except Exception:
         pass
 
-    raise ImportError("TileProcessor not found anywhere under vcube.*.")
+    raise ImportError("TileProcessor not found anywhere under virtughan.*.")
 
 
 TileProcessor, TP_path = _find_tileprocessor()
 
-app = FastAPI(title="vcube tiler (QGIS local)")
+app = FastAPI(title="virtughan tiler (QGIS local)")
 processor = TileProcessor(cache_time=60)  # shared instance (typically caches internally)
 
 

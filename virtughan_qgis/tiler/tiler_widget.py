@@ -33,7 +33,7 @@ class _InProcessServerManager:
     def start(self, app_path: str, host: str = "127.0.0.1", port: int = 8002, workers: int = 1):
         """
         Start in-process uvicorn. If app_path is empty or invalid, auto-discover any FastAPI app
-        under vcube.* (fallback virtughan.*). Logs which app was chosen. Tries subsequent ports if busy.
+        under virtughan.*. Logs which app was chosen. Tries subsequent ports if busy.
         """
         if self.is_running():
             return
@@ -76,16 +76,16 @@ class _InProcessServerManager:
         # 1) use the provided App Path first
         app, chosen = _resolve_app(app_path)
 
-        # 2) if blank or wrong, discover a FastAPI app under vcube.* then virtughan.*
+        # 2) if blank or wrong, discover a FastAPI app under virtughan.*
         if app is None:
             candidates = []
             try:
-                import vcube  # noqa
+                import virtughan  # noqa
             except Exception:
                 pass
 
             from fastapi import FastAPI as _Fast
-            for root in ("vcube", "virtughan"):
+            for root in ("virtughan",):
                 try:
                     pkg = importlib.import_module(root)
                 except Exception:
@@ -116,7 +116,7 @@ class _InProcessServerManager:
                 "Could not locate a FastAPI app to run.\n"
                 "• Set App Path to 'virtughan_qgis.tiler.api:app' (recommended),\n"
                 "  or 'C:\\path\\to\\api.py:app'.\n"
-                "• Or set an installed module path like 'vcube.<module>:app' if your package provides one."
+                "• Or set an installed module path like 'virtughan.<module>:app' if your package provides one."
             )
 
         # Route uvicorn logs into QGIS Messages; avoid duplicate handlers

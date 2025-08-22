@@ -9,22 +9,18 @@ from qgis.PyQt.QtWidgets import QProgressDialog, QMessageBox
 from qgis.PyQt.QtCore import Qt
 
 PKG_NAME = "virtughan"
-REQUIRED_VERSION_SPEC = ""  # e.g., "==0.3.1" if you want to lock version
-WHEELHOUSE = os.path.join(os.path.dirname(__file__), "wheelhouse")  # Optional local wheels folder
+REQUIRED_VERSION_SPEC = ""
+WHEELHOUSE = os.path.join(os.path.dirname(__file__), "wheelhouse")
 
-# ------------------------------
-# Internal check if package exists
-# ------------------------------
+
 def _pkg_present():
     try:
-        importlib.import_module("vcube")  # virtughan's core module name
+        importlib.import_module("virtughan")
         return True
     except ImportError:
         return False
 
-# ------------------------------
-# Build pip install command
-# ------------------------------
+
 def _pip_cmd_for_pkg():
     exe = sys.executable
     base = [
@@ -39,31 +35,21 @@ def _pip_cmd_for_pkg():
         ]
     return base + [f"{PKG_NAME}{REQUIRED_VERSION_SPEC}"]
 
-# ------------------------------
-# Install package silently
-# ------------------------------
+
 def _install_pkg_silent():
     cmd = _pip_cmd_for_pkg()
     try:
         subprocess.check_call(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
         return True, None
     except Exception as e:
-        # Fallback with --user if first attempt fails
         try:
             subprocess.check_call(cmd + ["--user"], stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             return True, None
         except Exception as e2:
             return False, f"{e}\n{e2}"
 
-# ------------------------------
-# Public function to ensure virtughan is installed
-# ------------------------------
+
 def ensure_virtughan_installed(parent=None, quiet=True):
-    """
-    Ensures virtughan package is installed.
-    Shows a progress dialog if quiet=False.
-    Returns True if installed/available, False otherwise.
-    """
     if _pkg_present():
         return True
 
@@ -84,7 +70,7 @@ def ensure_virtughan_installed(parent=None, quiet=True):
     t = threading.Thread(target=worker, daemon=True)
     t.start()
 
-    ok, err = q.get()  # Wait for result
+    ok, err = q.get()
 
     if dlg:
         dlg.close()
