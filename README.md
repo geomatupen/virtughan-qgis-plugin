@@ -1,5 +1,6 @@
 # virtughan-qgis-plugin
 The `virtughan qgis plugin` integrates the capabilities of the [VirtuGhan](https://pypi.org/project/virtughan/) Python package directly into QGIS. It provides a modular interface for performing remote sensing tasks, such as tiling, extraction, and visualization of satellite data, within the familiar QGIS environment.
+The `virtughan qgis plugin` integrates the capabilities of the [VirtuGhan](https://pypi.org/project/virtughan/) Python package directly into QGIS. It provides a modular interface for performing remote sensing tasks, such as tiling, extraction, and visualization of satellite data, within the familiar QGIS environment.
 
 This plugin is part of the broader **VirtuGhan** initiative, which aims to support accessible Earth observation workflows for humanitarian and environmental applications. By using the PyPI-distributed `virtughan` package, this QGIS plugin remains lightweight, maintainable, and easy to update without duplicating core logic.
 
@@ -130,10 +131,6 @@ Test passed. Image saved at: /home/yourname/test_tile_output.png
 ```
 
 
-
-
-import sys
-
 # 1) Make sure pip is importable (usually already true on 3.34)
 To make sure the pip is installed and virtughan is also installed on qgis python, follow these:
 1. go to plugins > python
@@ -201,8 +198,6 @@ Then you can install the plugin offline from files.
 important folders: \\wsl.localhost\Ubuntu\home\upen\projects\virtughan-qgis-plugin
 
 C:\Users\ROG\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins
-
-
 
 
 
