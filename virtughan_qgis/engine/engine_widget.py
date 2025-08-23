@@ -33,6 +33,8 @@ from ..common.aoi import (
     geom_to_wgs84_bbox,
 )
 
+from ..common.map_setup import setup_default_map
+
 COMMON_IMPORT_ERROR = None
 CommonParamsWidget = None
 try:
@@ -165,7 +167,6 @@ class EngineDockWidget(QDockWidget):
         self.iface = iface
         self.setObjectName("VirtuGhanEngineDock")
 
-        # ---- UI setup
         self.ui_root = QWidget(self)
         self._form_owner = FORM_CLASS()
         self._form_owner.setupUi(self.ui_root)

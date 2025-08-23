@@ -2,14 +2,14 @@
 name=VirtuGhan QGIS Plugin
 description=QGIS plugin with Extractor, Tiler, and Engine functionalities
 about=Plugin to run Extractor, Tiler, and Engine workflows for earth observation data. Download and analyze sentinel2 images with virtual datacube
-version=0.2.0
+version=0.2.1
 qgisMinimumVersion=3.22
 author=Upendra Oli; Kshitij Raj Sharma; Sahar Mohamed
 email=upendra.oli59@gmail.com
 category=Analysis
 icon=static/images/virtughan-logo.png
 homepage=https://virtughan.live/
-tracker=https://github.com/virtughan/qgis-plugin/issues
-repository=https://github.com/virtughan/qgis-plugin
+tracker=https://github.com/geomatupen/virtughan-qgis-plugin/issues
+repository=https://github.com/geomatupen/virtughan-qgis-plugin
 experimental=False
 deprecated=False
