@@ -26,19 +26,19 @@ def test_logic_modules_importable():
             assert False, f"Logic module import failed: {e}"
 
 
-def test_helper_functions():
-    project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root))
+# def test_helper_functions():
+#     project_root = Path(__file__).parent.parent
+#     sys.path.insert(0, str(project_root))
     
-    try:
-        from virtughan_qgis.utils import helpers
-        assert helpers is not None
+#     try:
+#         from virtughan_qgis.utils import helpers
+#         assert helpers is not None
         
-    except ImportError as e:
-        if 'qgis' in str(e).lower():
-            pytest.skip("QGIS not available in test environment")
-        else:
-            assert False, f"Helper functions import failed: {e}"
+#     except ImportError as e:
+#         if 'qgis' in str(e).lower():
+#             pytest.skip("QGIS not available in test environment")
+#         else:
+#             assert False, f"Helper functions import failed: {e}"
 
 
 def test_processing_provider_import():

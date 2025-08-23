@@ -5,7 +5,8 @@ import traceback
 from datetime import datetime
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import Qt, QDate, QTimer
+from qgis.PyQt.QtCore import Qt, QDate, QTimer, QVariant
+from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (
     QWidget, QDockWidget, QFileDialog, QMessageBox,
     QProgressBar, QPlainTextEdit, QComboBox, QCheckBox, QLabel,
@@ -16,23 +17,30 @@ from qgis.core import (
     Qgis,
     QgsMessageLog,
     QgsProcessingUtils,
-    QgsWkbTypes,
     QgsGeometry,
-    QgsPointXY,
     QgsProject,
-    QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
     QgsRectangle,
     QgsRasterLayer,
     QgsApplication,
     QgsTask,
 )
-from qgis.gui import QgsMapCanvas, QgsMapTool, QgsRubberBand
+
+from ..common.aoi import (
+    AoiManager,
+    AoiPolygonTool,
+    AoiRectTool,
+    rect_to_wgs84_bbox,
+    geom_to_wgs84_bbox,
+)
 
 COMMON_IMPORT_ERROR = None
 CommonParamsWidget = None
 try:
-    from ..common.common_widget import CommonParamsWidget
+    from ..common.common_widget import (
+        CommonParamsWidget,
+        extract_zipfiles
+    )
+    
 except Exception as _e:
     COMMON_IMPORT_ERROR = _e
     CommonParamsWidget = None
@@ -55,78 +63,6 @@ def _log(widget, msg, level=Qgis.Info):
         widget.logText.appendPlainText(str(msg))
     except Exception:
         pass
-
-
-def _extent_to_wgs84_bbox(iface, extent):
-    if extent is None:
-        return None
-    canvas = iface.mapCanvas() if iface else None
-    src_crs = canvas.mapSettings().destinationCrs() if canvas else QgsProject.instance().crs()
-    wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
-    if not src_crs.isValid() or src_crs == wgs84:
-        return [extent.xMinimum(), extent.yMinimum(), extent.xMaximum(), extent.yMaximum()]
-    xform = QgsCoordinateTransform(src_crs, wgs84, QgsProject.instance())
-    ll = xform.transform(extent.xMinimum(), extent.yMinimum())
-    ur = xform.transform(extent.xMaximum(), extent.yMaximum())
-    return [min(ll.x(), ur.x()), min(ll.y(), ur.y()), max(ll.x(), ur.x()), max(ll.y(), ur.y())]
-
-
-def _bbox_looks_projected(b):
-    return bool(b) and (abs(b[0]) > 180 or abs(b[2]) > 180 or abs(b[1]) > 90 or abs(b[3]) > 90)
-
-
-def _rect_from_bbox(bbox):
-    return QgsRectangle(bbox[0], bbox[1], bbox[2], bbox[3])
-
-
-class _AoiDrawTool(QgsMapTool):
-    def __init__(self, canvas: QgsMapCanvas, on_finished):
-        super().__init__(canvas)
-        self.canvas = canvas
-        self.on_finished = on_finished
-        self.points = []
-        self.rb = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
-        self.rb.setWidth(2)
-
-    def canvasPressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            pt = event.mapPoint()
-            self.points.append(QgsPointXY(pt))
-            self._update_rb()
-        elif event.button() == Qt.RightButton:
-            self._finish()
-
-    def keyPressEvent(self, event):
-        if event.key() == Qt.Key_Escape:
-            self._cleanup()
-            if self.on_finished:
-                self.on_finished(None)
-
-    def canvasDoubleClickEvent(self, event):
-        self._finish()
-
-    def _update_rb(self):
-        self.rb.reset(QgsWkbTypes.PolygonGeometry)
-        if len(self.points) >= 2:
-            geom = QgsGeometry.fromPolygonXY([self.points])
-            self.rb.setToGeometry(geom, None)
-
-    def _finish(self):
-        bbox = None
-        if len(self.points) >= 3:
-            geom = QgsGeometry.fromPolygonXY([self.points])
-            env = geom.boundingBox()
-            bbox = [env.xMinimum(), env.yMinimum(), env.xMaximum(), env.yMaximum()]
-        self._cleanup()
-        if self.on_finished:
-            self.on_finished(bbox)
-
-    def _cleanup(self):
-        try:
-            self.rb.reset(True)
-        except Exception:
-            pass
-        self.points = []
 
 
 class _VirtughanTask(QgsTask):
@@ -220,7 +156,6 @@ class _UiLogTailer:
                     self._widget.appendPlainText(chunk.rstrip("\n"))
                     self._pos = f.tell()
         except Exception:
-            
             pass
 
 
@@ -230,28 +165,28 @@ class EngineDockWidget(QDockWidget):
         self.iface = iface
         self.setObjectName("VirtuGhanEngineDock")
 
-        
+        # ---- UI setup
         self.ui_root = QWidget(self)
         self._form_owner = FORM_CLASS()
         self._form_owner.setupUi(self.ui_root)
         self.setWidget(self.ui_root)
 
         f = self.ui_root.findChild
-        
+
         self.progressBar        = f(QProgressBar, "progressBar")
         self.runButton          = f(QPushButton,   "runButton")
         self.resetButton        = f(QPushButton,   "resetButton")
         self.helpButton         = f(QPushButton,   "helpButton")
         self.logText            = f(QPlainTextEdit,"logText")
-        
+
         self.commonHost         = f(QWidget,       "commonParamsContainer")
-        
+
         self.aoiModeCombo       = f(QComboBox,     "aoiModeCombo")
         self.aoiUseCanvasButton = f(QPushButton,   "aoiUseCanvasButton")
-        self.aoiStartDrawButton = f(QPushButton,   "aoiStartDrawButton")
+        self.aoiStartDrawButton = f(QPushButton,   "aoiStartDrawButton")  
         self.aoiClearButton     = f(QPushButton,   "aoiClearButton")
         self.aoiPreviewLabel    = f(QLabel,        "aoiPreviewLabel")
-        
+
         self.opCombo            = f(QComboBox,     "opCombo")
         self.timeseriesCheck    = f(QCheckBox,     "timeseriesCheck")
         self.smartFilterCheck   = f(QCheckBox,     "smartFilterCheck")
@@ -259,7 +194,6 @@ class EngineDockWidget(QDockWidget):
         self.outputPathEdit     = f(QLineEdit,     "outputPathEdit")
         self.outputBrowseButton = f(QPushButton,   "outputBrowseButton")
 
-        
         critical = {
             "progressBar": self.progressBar, "runButton": self.runButton,
             "resetButton": self.resetButton, "helpButton": self.helpButton,
@@ -273,22 +207,30 @@ class EngineDockWidget(QDockWidget):
         }
         missing = [name for name, ref in critical.items() if ref is None]
         if missing:
-            raise RuntimeError(f"Engine UI missing widgets: {', '.join(missing)}. "
-                               f"Make sure engine_form.ui names match the code.")
+            raise RuntimeError(
+                f"Engine UI missing widgets: {', '.join(missing)}. "
+                f"Make sure engine_form.ui names match the code."
+            )
 
-        
         self._init_common_widget()
 
-        
         self.progressBar.setVisible(False)
-        
         self.workersSpin.setMinimum(1)
         if self.workersSpin.value() < 1:
             self.workersSpin.setValue(1)
 
-        
-        self.aoiUseCanvasButton.clicked.connect(self._use_canvas_extent)
-        self.aoiStartDrawButton.clicked.connect(self._start_draw_aoi)
+        self._aoi_bbox = None
+        self._aoi = AoiManager(self.iface)   
+        self._prev_tool = None               
+
+        # Convert dropdown to 3 options at runtime (no .ui change required)
+        self.aoiModeCombo.clear()
+        self.aoiModeCombo.addItems(["Map extent", "Draw rectangle", "Draw polygon"])
+
+        # Use a single action button; hide the separate 'Use Canvas Extent' button
+        self.aoiUseCanvasButton.setVisible(False)
+
+        self.aoiStartDrawButton.clicked.connect(self._aoi_action_clicked)
         self.aoiClearButton.clicked.connect(self._clear_aoi)
         self.aoiModeCombo.currentTextChanged.connect(self._aoi_mode_changed)
 
@@ -297,13 +239,10 @@ class EngineDockWidget(QDockWidget):
         self.runButton.clicked.connect(self._run_clicked)
         self.helpButton.clicked.connect(self._open_help)
 
-        
-        self._aoi_bbox = None
-        self._aoi_tool = None
+        # Initialize AOI preview and action button label
         self._update_aoi_preview()
         self._aoi_mode_changed(self.aoiModeCombo.currentText())
 
-        
         self._tailer = None
         self._current_task = None
         self._current_log_path = None
@@ -318,7 +257,7 @@ class EngineDockWidget(QDockWidget):
                 self._common.set_defaults(
                     start_date=QDate.currentDate().addMonths(-1),
                     end_date=QDate.currentDate(),
-                    cloud=30,
+                    cloud=60,
                     band1="red",
                     band2="nir",
                     formula="(band2-band1)/(band2+band1)",
@@ -328,7 +267,6 @@ class EngineDockWidget(QDockWidget):
             v.addWidget(self._common)
             _log(self, "Using CommonParamsWidget.", Qgis.Info)
         else:
-            
             fb = QWidget(host)
             form = QFormLayout(fb)
             self.fb_start = QDateEdit(fb); self.fb_start.setCalendarPopup(True); self.fb_start.setDate(QDate.currentDate().addMonths(-1))
@@ -359,6 +297,116 @@ class EngineDockWidget(QDockWidget):
             "formula": self.fb_formula.text().strip(),
         }
 
+    def _aoi_mode_changed(self, text: str):
+        """Update the single action button text based on the selected mode."""
+        t = (text or "").lower()
+        if "extent" in t:
+            self.aoiStartDrawButton.setText("Use Canvas Extent")
+            self.aoiStartDrawButton.setToolTip("Capture current map canvas extent")
+        elif "rectangle" in t:
+            self.aoiStartDrawButton.setText("Draw Rectangle")
+            self.aoiStartDrawButton.setToolTip("Press, drag, release to draw a rectangle")
+        else:
+            self.aoiStartDrawButton.setText("Draw Polygon")
+            self.aoiStartDrawButton.setToolTip("Left-click to add vertices, right-click/Enter/double-click to finish")
+
+    def _aoi_action_clicked(self):
+        """Single action button handler; dispatch by dropdown mode."""
+        mode = (self.aoiModeCombo.currentText() or "").lower()
+        if "extent" in mode:
+            self._use_canvas_extent()
+        elif "rectangle" in mode:
+            self._start_draw_rectangle()
+        else:
+            self._start_draw_polygon()
+
+    def _use_canvas_extent(self):
+        canvas = self.iface.mapCanvas()
+        if not canvas or not canvas.extent():
+            QMessageBox.warning(self, "VirtuGhan", "No map canvas extent available.")
+            return
+
+        rect = canvas.extent()
+        # visible AOI (map CRS)
+        rect_geom = QgsGeometry.fromRect(rect)
+        self._aoi.replace_geometry(rect_geom)
+
+        # processing bbox (WGS84)
+        self._aoi_bbox = rect_to_wgs84_bbox(rect, QgsProject.instance())
+        self._update_aoi_preview()
+
+    def _start_draw_rectangle(self):
+        """Use common AoiRectTool; press-drag-release to finish."""
+        canvas = self.iface.mapCanvas()
+        if not canvas:
+            QMessageBox.warning(self, "VirtuGhan", "Map canvas not available.")
+            return
+
+        self._prev_tool = canvas.mapTool()
+
+        def _finish(rect: QgsRectangle | None):
+            try:
+                canvas.setMapTool(self._prev_tool)
+            except Exception:
+                pass
+            if not rect or rect.isEmpty():
+                _log(self, "AOI rectangle drawing canceled.")
+                return
+
+            # visible AOI (map CRS)
+            self._aoi.replace_geometry(QgsGeometry.fromRect(rect))
+
+            # processing bbox (WGS84)
+            self._aoi_bbox = rect_to_wgs84_bbox(rect, QgsProject.instance())
+            self._update_aoi_preview()
+
+        tool = AoiRectTool(canvas, _finish)
+        canvas.setMapTool(tool)
+        _log(self, "Draw rectangle: press, drag, release to finish. Esc to cancel.")
+
+    def _start_draw_polygon(self):
+        canvas = self.iface.mapCanvas()
+        if not canvas:
+            QMessageBox.warning(self, "VirtuGhan", "Map canvas not available.")
+            return
+
+        self._prev_tool = canvas.mapTool()
+
+        def _done(geom_map: QgsGeometry | None):
+            try:
+                canvas.setMapTool(self._prev_tool)
+            except Exception:
+                pass
+
+            if geom_map is None or geom_map.isEmpty():
+                _log(self, "AOI polygon drawing canceled.")
+                return
+
+            # visible AOI (map CRS)
+            self._aoi.replace_geometry(geom_map)
+
+            # processing bbox (WGS84)
+            self._aoi_bbox = geom_to_wgs84_bbox(geom_map, QgsProject.instance())
+            self._update_aoi_preview()
+
+        tool = AoiPolygonTool(canvas, _done)
+        canvas.setMapTool(tool)
+        _log(self, "Draw polygon: left-click to add, right-click/Enter/double-click to finish, Esc to cancel.")
+
+    def _clear_aoi(self):
+        self._aoi_bbox = None
+        self._update_aoi_preview()
+        self._aoi.clear()
+
+    def _update_aoi_preview(self):
+        if self._aoi_bbox:
+            x1, y1, x2, y2 = self._aoi_bbox
+            self.aoiPreviewLabel.setText(f"AOI (EPSG:4326): ({x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f})")
+        else:
+            self.aoiPreviewLabel.setText("<i>AOI: not set yet</i>")
+
+
+
     def _open_help(self):
         try:
             self.iface.openURL("https://example.com/virtughan-docs")
@@ -371,7 +419,7 @@ class EngineDockWidget(QDockWidget):
             self.outputPathEdit.setText(path)
 
     def _reset_form(self):
-        
+        # Reset common params to defaults
         if self._common is not None:
             try:
                 self._common.set_defaults(
@@ -395,9 +443,12 @@ class EngineDockWidget(QDockWidget):
             except Exception:
                 pass
 
+        # Reset AOI + UI 
         self._aoi_bbox = None
         self._update_aoi_preview()
-        self.opCombo.setCurrentIndex(7)          
+        self._aoi.clear()
+
+        self.opCombo.setCurrentIndex(7)
         self.timeseriesCheck.setChecked(False)
         self.smartFilterCheck.setChecked(False)
         self.workersSpin.setMinimum(1)
@@ -406,67 +457,21 @@ class EngineDockWidget(QDockWidget):
         self.outputPathEdit.clear()
         self.logText.clear()
 
-    
-    def _aoi_mode_changed(self, text: str):
-        t = (text or "").lower()
-        self.aoiUseCanvasButton.setEnabled("extent" in t)
-        self.aoiStartDrawButton.setEnabled("draw" in t)
-
-    def _use_canvas_extent(self):
-        canvas: QgsMapCanvas = self.iface.mapCanvas()
-        if not canvas or not canvas.extent():
-            QMessageBox.warning(self, "VirtuGhan", "No map canvas extent available.")
-            return
-        self._aoi_bbox = _extent_to_wgs84_bbox(self.iface, canvas.extent())
-        self._update_aoi_preview()
-
-    def _start_draw_aoi(self):
-        canvas: QgsMapCanvas = self.iface.mapCanvas()
-        if not canvas:
-            QMessageBox.warning(self, "VirtuGhan", "Map canvas not available.")
-            return
-        if "draw" not in (self.aoiModeCombo.currentText() or "").lower():
-            self.aoiModeCombo.setCurrentText("Draw polygon")
-
-        prev_tool = canvas.mapTool()
-
-        def _finish(local_bbox):
-            try:
-                canvas.setMapTool(prev_tool)
-            except Exception:
-                pass
-            if local_bbox is None:
-                _log(self, "AOI drawing canceled.")
-                return
-            self._aoi_bbox = _extent_to_wgs84_bbox(self.iface, _rect_from_bbox(local_bbox))
-            self._update_aoi_preview()
-
-        self._aoi_tool = _AoiDrawTool(canvas, _finish)
-        canvas.setMapTool(self._aoi_tool)
-        _log(self, "Drawing AOI: left-click to add vertices, right-click to finish, Esc to cancel.")
-
-    def _clear_aoi(self):
-        self._aoi_bbox = None
-        self._update_aoi_preview()
-
-    def _update_aoi_preview(self):
-        if self._aoi_bbox:
-            x1, y1, x2, y2 = self._aoi_bbox
-            self.aoiPreviewLabel.setText(f"AOI (EPSG:4326): ({x1:.6f}, {y1:.6f}, {x2:.6f}, {y2:.6f})")
-        else:
-            self.aoiPreviewLabel.setText("<i>AOI: not set yet</i>")
-
-    
+  
+    # Collect params / run task
     def _collect_params(self):
         if VirtughanProcessor is None:
             raise RuntimeError(f"VirtughanProcessor import failed: {VIRTUGHAN_IMPORT_ERROR}")
         if not self._aoi_bbox:
-            raise RuntimeError("Please set AOI (Use Canvas Extent or Draw AOI) before running.")
-        if _bbox_looks_projected(self._aoi_bbox):
+            raise RuntimeError("Please set AOI (Map extent / Draw rectangle / Draw polygon) before running.")
+
+        # quick check for WGS84-like bbox
+        b = self._aoi_bbox
+        if not (len(b) == 4 and -180 <= b[0] < b[2] <= 180 and -90 <= b[1] < b[3] <= 90):
             raise RuntimeError(f"AOI bbox does not look like EPSG:4326: {self._aoi_bbox}")
 
         p = self._get_common_params()
-        
+
         sdt = QDate.fromString(p["start_date"], "yyyy-MM-dd")
         edt = QDate.fromString(p["end_date"], "yyyy-MM-dd")
         if not sdt.isValid() or not edt.isValid():
@@ -503,7 +508,6 @@ class EngineDockWidget(QDockWidget):
             output_dir=out_dir,
         )
 
-    
     def _start_tailing(self, log_path: str):
         self._current_log_path = log_path
         self._tailer = _UiLogTailer(log_path, self.logText, interval_ms=400)
@@ -515,7 +519,6 @@ class EngineDockWidget(QDockWidget):
             self._tailer = None
         self._current_log_path = None
 
-    
     def _run_clicked(self):
         try:
             params = self._collect_params()
@@ -534,7 +537,6 @@ class EngineDockWidget(QDockWidget):
         _log(self, f"Output: {out_dir}")
         _log(self, f"Log file: {log_path}")
 
-        
         try:
             open(log_path, "a", encoding="utf-8").close()
         except Exception:
@@ -544,13 +546,13 @@ class EngineDockWidget(QDockWidget):
         self._start_tailing(log_path)
 
         def _on_done(ok, exc):
-            
             self._stop_tailing()
             self._set_running(False)
             if not ok or exc:
                 _log(self, f"Engine failed: {exc}", Qgis.Critical)
                 QMessageBox.critical(self, "VirtuGhan", f"Engine failed:\n{exc}\n\nSee runtime.log for details.")
             else:
+                extract_zipfiles(out_dir, logger=lambda m, lvl=Qgis.Info: _log(self, m, lvl), delete_archives=True)
                 
                 added = 0
                 for root, _dirs, files in os.walk(out_dir):
@@ -568,7 +570,6 @@ class EngineDockWidget(QDockWidget):
                     _log(self, "No .tif/.tiff/.vrt files found to load.")
                 QMessageBox.information(self, "VirtuGhan", f"Engine finished.\nOutput: {out_dir}")
 
-        
         self._current_task = _VirtughanTask("VirtuGhan Engine", params, log_path, on_done=_on_done)
         QgsApplication.taskManager().addTask(self._current_task)
 
@@ -577,7 +578,7 @@ class EngineDockWidget(QDockWidget):
         self.progressBar.setRange(0, 0 if running else 1)
         self.runButton.setEnabled(not running)
         self.resetButton.setEnabled(not running)
-        for w in (self.aoiUseCanvasButton, self.aoiStartDrawButton, self.aoiClearButton,
+        for w in (self.aoiStartDrawButton, self.aoiClearButton,
                   self.aoiModeCombo, self.outputBrowseButton):
             try:
                 w.setEnabled(not running)

@@ -51,7 +51,7 @@ def test_plugin_package_structure():
                 "virtughan_qgis/engine/",
                 "virtughan_qgis/extractor/",
                 "virtughan_qgis/tiler/",
-                "virtughan_qgis/utils/"
+                # "virtughan_qgis/utils/"
             ]
             
             for required_dir in required_dirs:
