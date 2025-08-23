@@ -28,7 +28,7 @@ class CommonParamsWidget(QtWidgets.QWidget):
         self.startDate.setDate(QDate.currentDate().addMonths(-1))
         self.endDate.setDate(QDate.currentDate())
         self.cloudSpin.setRange(0, 100)
-        self.cloudSpin.setValue(30)
+        self.cloudSpin.setValue(80)
         self.formulaEdit.setText("(band2-band1)/(band2+band1)")
 
         populate_band_combos(self.band1Combo, self.band2Combo, self._bands_meta)

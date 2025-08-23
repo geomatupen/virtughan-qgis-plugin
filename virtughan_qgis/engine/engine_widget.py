@@ -258,7 +258,7 @@ class EngineDockWidget(QDockWidget):
                 self._common.set_defaults(
                     start_date=QDate.currentDate().addMonths(-1),
                     end_date=QDate.currentDate(),
-                    cloud=60,
+                    cloud=80,
                     band1="red",
                     band2="nir",
                     formula="(band2-band1)/(band2+band1)",

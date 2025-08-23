@@ -31,7 +31,7 @@ def load_bands_meta():
     return None
 
 def default_band_list():
-    return ["red","green","blue","nir","nir08","swir16","swir22","rededge1","rededge2","rededge3","visual"]
+    return ["red","green","blue","nir","nir08","swir16","swir22","rededge1","rededge2","rededge3"]
 
 def populate_band_combos(band1_combo, band2_combo, bands_meta=None):
     bands = list(bands_meta.keys()) if bands_meta else default_band_list()
