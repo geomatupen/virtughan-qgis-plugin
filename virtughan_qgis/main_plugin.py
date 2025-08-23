@@ -5,9 +5,9 @@ import sys
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsApplication
+from .common.hub_dialog import VirtughanHubDialog
 
 from .common.map_setup import setup_default_map
-from qgis.core import Qgis  
 
 
 PLUGIN_DIR = os.path.dirname(__file__)
@@ -98,6 +98,13 @@ class VirtuGhanPlugin:
             )
 
     def unload(self):
+        try:
+            if self._hub_dialog:
+                self._hub_dialog.close()
+        except Exception:
+            pass
+        self._hub_dialog = None
+
         if self.action_engine:
             self.iface.removePluginMenu("VirtuGhan", self.action_engine)
             self.iface.removeToolBarIcon(self.action_engine)
@@ -127,9 +134,10 @@ class VirtuGhanPlugin:
                 QgsApplication.processingRegistry().removeProvider(self.provider)
             except Exception:
                 pass
-            self.provider = None
+            self.provider = None 
 
-    def _setup_basemap_before_open(self):
+    def _show_hub(self, start_page: str):
+        # Optional: add basemap once per click, but skip if already present
         try:
             if getattr(self.iface, "mapCanvas", None) and self.iface.mapCanvas():
                 setup_default_map(
@@ -139,7 +147,7 @@ class VirtuGhanPlugin:
                     set_project_crs=False,            # respect current project CRS
                     skip_if_present=True,             # don't add another OSM if present
                     skip_zoom_if_present=True,        # don't re-zoom if OSM is already there
-                    zoom_delay_ms=80,
+                    zoom_delay_ms=1000,
                 )
         except Exception as e:
             # skip if osm map already exists and any issues with map loading
@@ -148,49 +156,28 @@ class VirtuGhanPlugin:
             except Exception:
                 pass
 
-    def show_engine(self):
-        self._setup_basemap_before_open()
-        if not self._imports_ready and not self._ensure_deps_and_imports():
-            QMessageBox.critical(
-                self.iface.mainWindow(),
-                "VirtuGhan",
-                f"Engine UI cannot be shown because dependencies are missing:\n\n{self._last_import_error}"
-            )
-            return
+        # Close previous instance if you want only one hub at a time
+        try:
+            if self._hub_dialog:
+                self._hub_dialog.close()
+        except Exception:
+            pass
 
-        if not self.engine_dock:
-            self.engine_dock = self._EngineDockWidget(self.iface)
-            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.engine_dock)
-        self.engine_dock.show()
-        self.engine_dock.raise_()
+        self._hub_dialog = VirtughanHubDialog(self.iface, start_page=start_page, parent=self.iface.mainWindow())
+        self._hub_dialog.setModal(False)
+        self._hub_dialog.setAttribute(Qt.WA_DeleteOnClose, True)
+        self._hub_dialog.show()
+        self._hub_dialog.raise_()
+
+
+    def show_engine(self):
+        self._show_hub("engine")
 
     def show_extractor(self):
-        self._setup_basemap_before_open()
-        if not self._imports_ready and not self._ensure_deps_and_imports():
-            QMessageBox.critical(
-                self.iface.mainWindow(),
-                "VirtuGhan",
-                f"Extractor UI cannot be shown because dependencies are missing:\n\n{self._last_import_error}"
-            )
-            return
-
-        if not self.extractor_dock:
-            self.extractor_dock = self._ExtractorDockWidget(self.iface)
-            self.iface.addDockWidget(Qt.RightDockWidgetArea, self.extractor_dock)
-        self.extractor_dock.show()
-        self.extractor_dock.raise_()
+        self._show_hub("extractor")
 
     def show_tiler(self):
-        self._setup_basemap_before_open()
-        if not self._imports_ready and not self._ensure_deps_and_imports():
-            QMessageBox.critical(
-                self.iface.mainWindow(),
-                "VirtuGhan",
-                f"Tiler UI cannot be shown because dependencies are missing:\n\n{self._last_import_error}"
-            )
-            return
-        if not self.tiler_dock:
-            self.tiler_dock = self._TilerDockWidget(self.iface)
-            self.iface.addDockWidget(Qt.LeftDockWidgetArea, self.tiler_dock)
-        self.tiler_dock.show()
-        self.tiler_dock.raise_()
+        self._show_hub("tiler")
+
+
+
