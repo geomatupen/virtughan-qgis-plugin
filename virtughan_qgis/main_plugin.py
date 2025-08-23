@@ -6,6 +6,10 @@ from qgis.PyQt.QtWidgets import QAction, QMessageBox
 from qgis.PyQt.QtCore import Qt
 from qgis.core import QgsApplication
 
+from .common.map_setup import setup_default_map
+from qgis.core import Qgis  
+
+
 PLUGIN_DIR = os.path.dirname(__file__)
 LIBS_DIR = os.path.join(PLUGIN_DIR, "libs")
 if os.path.isdir(LIBS_DIR) and LIBS_DIR not in sys.path:
@@ -125,7 +129,27 @@ class VirtuGhanPlugin:
                 pass
             self.provider = None
 
+    def _setup_basemap_before_open(self):
+        try:
+            if getattr(self.iface, "mapCanvas", None) and self.iface.mapCanvas():
+                setup_default_map(
+                    self.iface,
+                    center_wgs84=(85.3240, 27.7172), 
+                    scale_m=5000,
+                    set_project_crs=False,            # respect current project CRS
+                    skip_if_present=True,             # don't add another OSM if present
+                    skip_zoom_if_present=True,        # don't re-zoom if OSM is already there
+                    zoom_delay_ms=80,
+                )
+        except Exception as e:
+            # skip if osm map already exists and any issues with map loading
+            try:
+                self.iface.messageBar().pushWarning("VirtuGhan", f"Basemap skipped: {e}")
+            except Exception:
+                pass
+
     def show_engine(self):
+        self._setup_basemap_before_open()
         if not self._imports_ready and not self._ensure_deps_and_imports():
             QMessageBox.critical(
                 self.iface.mainWindow(),
@@ -141,6 +165,7 @@ class VirtuGhanPlugin:
         self.engine_dock.raise_()
 
     def show_extractor(self):
+        self._setup_basemap_before_open()
         if not self._imports_ready and not self._ensure_deps_and_imports():
             QMessageBox.critical(
                 self.iface.mainWindow(),
@@ -156,6 +181,7 @@ class VirtuGhanPlugin:
         self.extractor_dock.raise_()
 
     def show_tiler(self):
+        self._setup_basemap_before_open()
         if not self._imports_ready and not self._ensure_deps_and_imports():
             QMessageBox.critical(
                 self.iface.mainWindow(),
