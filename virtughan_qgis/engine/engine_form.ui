@@ -239,7 +239,7 @@
      </widget>
 
      <!-- Advanced tab (placeholder) -->
-     <widget class="QWidget" name="tabAdvanced">
+     <!-- <widget class="QWidget" name="tabAdvanced">
       <attribute name="title"><string>Advanced</string></attribute>
       <layout class="QVBoxLayout" name="advancedLayout">
        <item>
@@ -258,7 +258,7 @@
         </spacer>
        </item>
       </layout>
-     </widget>
+     </widget> -->
 
     </widget>
    </item>

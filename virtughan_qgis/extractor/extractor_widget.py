@@ -192,11 +192,39 @@ class ExtractorDockWidget(QDockWidget):
             layout = self.commonHost.layout() or QVBoxLayout(self.commonHost)
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(self.commonWidget)
+
+            # Hide fields that don't apply to Extractor
+            self._hide_bands_and_formula()
         else:
             self.commonWidget = None
-            _log(
-                self, f"CommonParamsWidget failed: {COMMON_IMPORT_ERROR}", Qgis.Warning
-            )
+            _log(self, f"CommonParamsWidget failed: {COMMON_IMPORT_ERROR}", Qgis.Warning)
+
+
+    def _hide_bands_and_formula(self):
+        """Hide Band 1, Band 2, and Formula widgets from CommonParamsWidget."""
+        w = getattr(self, "commonWidget", None)
+        if not w:
+            return
+
+        # These names must match the name in .ui:
+        names = ("labelBand1", "band1Combo",
+                "labelBand2", "band2Combo",
+                "labelFormula", "formulaEdit",
+                "hintLabel")
+
+        for name in names:
+            child = w.findChild(QWidget, name)
+            if child:
+                child.hide()
+
+        # Optional: nudge layouts to recompute sizes
+        try:
+            w.updateGeometry()
+            self.ui_root.adjustSize()
+        except Exception:
+            pass
+
+
 
     def _get_common_params(self):
         if self.commonWidget:
