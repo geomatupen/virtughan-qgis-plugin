@@ -17,22 +17,13 @@ from qgis.core import (
     Qgis,
     QgsMessageLog,
     QgsProcessingUtils,
-    QgsWkbTypes,
     QgsGeometry,
-    QgsPointXY,
     QgsProject,
-    QgsCoordinateReferenceSystem,
-    QgsCoordinateTransform,
     QgsRectangle,
     QgsRasterLayer,
     QgsApplication,
     QgsTask,
-    QgsVectorLayer,
-    QgsFeature,
-    QgsFields,
-    QgsField,
 )
-from qgis.gui import QgsMapCanvas, QgsMapTool, QgsRubberBand
 
 from ..common.aoi import (
     AoiManager,
@@ -45,7 +36,11 @@ from ..common.aoi import (
 COMMON_IMPORT_ERROR = None
 CommonParamsWidget = None
 try:
-    from ..common.common_widget import CommonParamsWidget
+    from ..common.common_widget import (
+        CommonParamsWidget,
+        extract_zipfiles
+    )
+    
 except Exception as _e:
     COMMON_IMPORT_ERROR = _e
     CommonParamsWidget = None
@@ -68,10 +63,6 @@ def _log(widget, msg, level=Qgis.Info):
         widget.logText.appendPlainText(str(msg))
     except Exception:
         pass
-
-
-def _bbox_looks_projected(b):
-    return bool(b) and (abs(b[0]) > 180 or abs(b[2]) > 180 or abs(b[1]) > 90 or abs(b[3]) > 90)
 
 
 class _VirtughanTask(QgsTask):
@@ -452,7 +443,7 @@ class EngineDockWidget(QDockWidget):
             except Exception:
                 pass
 
-        # Reset AOI + UI bits
+        # Reset AOI + UI 
         self._aoi_bbox = None
         self._update_aoi_preview()
         self._aoi.clear()
@@ -561,6 +552,8 @@ class EngineDockWidget(QDockWidget):
                 _log(self, f"Engine failed: {exc}", Qgis.Critical)
                 QMessageBox.critical(self, "VirtuGhan", f"Engine failed:\n{exc}\n\nSee runtime.log for details.")
             else:
+                extract_zipfiles(out_dir, logger=lambda m, lvl=Qgis.Info: _log(self, m, lvl), delete_archives=True)
+                
                 added = 0
                 for root, _dirs, files in os.walk(out_dir):
                     for fn in files:
