@@ -10,6 +10,8 @@ from qgis.core import (
     QgsProcessingException, QgsProject, QgsCoordinateReferenceSystem, QgsCoordinateTransform,
     QgsRasterLayer)
 
+from ..common.common_logic import default_band_list
+
 EXTRACTOR_IMPORT_ERROR = None
 try:
     from virtughan.extract import ExtractProcessor
@@ -17,10 +19,7 @@ except Exception as e:
     ExtractProcessor = None
     EXTRACTOR_IMPORT_ERROR = e
 
-VALID_BANDS = [
-    "red","green","blue","nir","swir22","rededge2","rededge3","rededge1",
-    "swir16","wvp","nir08","aot","coastal","nir09"
-]
+VALID_BANDS = default_band_list()
 
 def _coerce_to_qdate(val) -> QDate:
     if isinstance(val, QDate):

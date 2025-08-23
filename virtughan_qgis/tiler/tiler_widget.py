@@ -1,8 +1,8 @@
+# virtughan_qgis/tiler/tiler_widget.py
 import os
 import sys
 import threading
 import importlib
-import pkgutil
 import logging
 
 from qgis.PyQt import uic
@@ -11,6 +11,13 @@ from qgis.PyQt.QtWidgets import QWidget, QMessageBox, QDockWidget
 from qgis.core import QgsMessageLog, Qgis, QgsProject
 
 from .tiler_logic import TilerLogic
+
+CommonParamsWidget = None
+try:
+    from ..common.common_widget import CommonParamsWidget
+    from ..common.common_logic import default_band_list
+except Exception:
+    CommonParamsWidget = None
 
 FORM_CLASS, _ = uic.loadUiType(os.path.join(os.path.dirname(__file__), "tiler_form.ui"))
 
@@ -32,8 +39,8 @@ class _InProcessServerManager:
 
     def start(self, app_path: str, host: str = "127.0.0.1", port: int = 8002, workers: int = 1):
         """
-        Start in-process uvicorn. If app_path is empty or invalid, auto-discover any FastAPI app
-        under virtughan.*. Logs which app was chosen. Tries subsequent ports if busy.
+        Start in-process uvicorn for the explicit app_path only.
+        Supports 'module:function' or 'file.py:function'. No auto-discovery.
         """
         if self.is_running():
             return
@@ -45,13 +52,12 @@ class _InProcessServerManager:
             QgsMessageLog.logMessage(msg, "VirtuGhan", Qgis.Info)
 
         def _resolve_app(path: str):
-            """Try 'module:function' or 'file.py:function'. Returns (app, chosen_path) or (None,None)."""
             if not path or ":" not in path:
                 return None, None
             mod_raw, fn_raw = path.split(":", 1)
             mod_raw, fn = mod_raw.strip(), fn_raw.strip()
 
-            
+            # file.py:function
             if mod_raw.lower().endswith(".py") or ("\\" in mod_raw) or ("/" in mod_raw):
                 full = os.path.abspath(os.path.expanduser(mod_raw))
                 if not os.path.isfile(full):
@@ -73,53 +79,13 @@ class _InProcessServerManager:
                 _log(f"[uvicorn] Could not import {module_name}:{fn} ({e}).")
             return None, None
 
-        
         app, chosen = _resolve_app(app_path)
-
-        
-        if app is None:
-            candidates = []
-            try:
-                import virtughan  
-            except Exception:
-                pass
-
-            from fastapi import FastAPI as _Fast
-            for root in ("virtughan",):
-                try:
-                    pkg = importlib.import_module(root)
-                except Exception:
-                    continue
-                try:
-                    for m in pkgutil.walk_packages(pkg.__path__, root + "."):
-                        if m.ispkg:
-                            continue
-                        try:
-                            mod = importlib.import_module(m.name)
-                            for name, obj in vars(mod).items():
-                                if isinstance(obj, _Fast):
-                                    candidates.append(f"{m.name}:{name}")
-                        except Exception:
-                            pass
-                except Exception:
-                    pass
-
-            if candidates:
-                _log("Discovered FastAPI apps:\n  " + "\n  ".join(candidates))
-                for cand in candidates:
-                    app, chosen = _resolve_app(cand)
-                    if app is not None:
-                        break
-
         if app is None:
             raise RuntimeError(
-                "Could not locate a FastAPI app to run.\n"
-                "• Set App Path to 'virtughan_qgis.tiler.api:app' (recommended),\n"
-                "  or 'C:\\path\\to\\api.py:app'.\n"
-                "• Or set an installed module path like 'virtughan.<module>:app' if your package provides one."
+                "Could not import FastAPI app. Set App Path to 'virtughan_qgis.tiler.api:app' "
+                "or 'C:\\path\\to\\api.py:app'."
             )
 
-        
         uv_logger = logging.getLogger("uvicorn")
         uv_logger.setLevel(logging.INFO)
 
@@ -135,19 +101,13 @@ class _InProcessServerManager:
                 uv_logger.removeHandler(h)
         uv_logger.addHandler(_QgisHandler())
 
-        
         def _make_server(bind_port: int):
             cfg = uvicorn.Config(
-                app=app,
-                host=host,
-                port=int(bind_port),
-                log_level="info",
-                log_config=None,   
-                access_log=False,  
+                app=app, host=host, port=int(bind_port),
+                log_level="info", log_config=None, access_log=False
             )
             return uvicorn.Server(cfg)
 
-        
         last_err = None
         for attempt in range(21):
             try_port = int(port) + attempt
@@ -164,7 +124,6 @@ class _InProcessServerManager:
 
                 self._thread = threading.Thread(target=_run, daemon=True)
                 self._thread.start()
-                
                 self._bound_host = host
                 self._bound_port = try_port
                 return
@@ -175,7 +134,7 @@ class _InProcessServerManager:
                 last_err = e
                 continue
 
-        raise RuntimeError(f"Failed to start local server on {host}:{port} (and subsequent ports). Last error: {last_err}")
+        raise RuntimeError(f"Failed to start local server on {host}:{port}. Last error: {last_err}")
 
     def stop(self):
         if self._server is not None:
@@ -199,6 +158,7 @@ class TilerWidget(QWidget, FORM_CLASS):
         self.iface = iface
         self.logic = TilerLogic(iface)
         self.server = _InProcessServerManager()
+        self._tiler_layer_id = None  # track last added tiler layer id
 
         self._init_defaults()
         self._wire_signals()
@@ -206,55 +166,88 @@ class TilerWidget(QWidget, FORM_CLASS):
         self._apply_localserver_visibility()
         QgsProject.instance().layersRemoved.connect(self._on_layers_removed)
 
-    
     def _log(self, msg: str):
         QgsMessageLog.logMessage(msg, "VirtuGhan", Qgis.Info)
 
-    def _init_defaults(self):
-        
+    # Reuse defaults from common (if available), else fallback
+    def _load_common_defaults(self):
+        """
+        Returns dict:
+          start_date, end_date = 'yyyy-MM-dd'
+          cloud_cover (int), band1, band2, formula (str)
+        """
+        try:
+            if CommonParamsWidget is not None:
+                for name in ("default_values", "get_default_params", "defaults", "get_defaults"):
+                    if hasattr(CommonParamsWidget, name):
+                        d = getattr(CommonParamsWidget, name)()
+                        if isinstance(d, dict) and d:
+                            return d
+        except Exception:
+            pass
         today = QDate.currentDate()
-        self.endDateEdit.setDate(today)
-        self.startDateEdit.setDate(today.addDays(-30))
+        return {
+            "start_date": today.addDays(-30).toString("yyyy-MM-dd"),
+            "end_date": today.toString("yyyy-MM-dd"),
+            "cloud_cover": 30,
+            "band1": "red",
+            "band2": "nir",
+            "formula": "(band2 - band1) / (band2 + band1)",
+        }
 
-        
+    def _qdate_from_any(self, v, fallback: QDate) -> QDate:
+        if isinstance(v, QDate) and v.isValid():
+            return v
+        if isinstance(v, str):
+            qd = QDate.fromString(v, "yyyy-MM-dd")
+            if qd.isValid():
+                return qd
+        return fallback
+
+    def _init_defaults(self):
+        d = self._load_common_defaults()
+
+        # Dates
+        today = QDate.currentDate()
+        sd = self._qdate_from_any(d.get("start_date"), today.addDays(-30))
+        ed = self._qdate_from_any(d.get("end_date"), today)
+        self.startDateEdit.setDate(sd)
+        self.endDateEdit.setDate(ed)
+
+        # Cloud
         self.cloudSpin.setRange(0, 100)
-        self.cloudSpin.setValue(30)
+        self.cloudSpin.setValue(int(d.get("cloud_cover", 30)))
 
-        
+        band_list = default_band_list()
+
+        # Bands / formula seeded from common
         if self.band1Combo.count() == 0:
-            self.band1Combo.addItems(["visual", "red", "green", "blue", "nir", "swir1", "swir2"])
+            self.band1Combo.addItems(band_list)
         if self.band2Combo.count() == 0:
-            self.band2Combo.addItems(["", "red", "green", "blue", "nir", "swir1", "swir2"])
-
-        
-        self.band1Combo.setCurrentText("red")
-        self.band2Combo.setCurrentText("nir")
+            self.band2Combo.addItems(band_list)
+        self.band1Combo.setCurrentText(d.get("band1", "red"))
+        self.band2Combo.setCurrentText(d.get("band2", "nir"))
         if not self.formulaLine.text():
-            self.formulaLine.setText("(band2 - band1) / (band2 + band1)")
+            self.formulaLine.setText(d.get("formula", "(band2 - band1) / (band2 + band1)"))
 
-        
         self.timeseriesCheck.setChecked(False)
         self.operationCombo.clear()
         self.operationCombo.addItems(["median", "mean", "min", "max"])
 
-        
+        # Backend defaults
         if not self.backendUrlLine.text():
             self.backendUrlLine.setText("http://127.0.0.1:8002")
-
-        
         if not self.layerNameLine.text():
             self.layerNameLine.setText("VirtuGhan Tiler")
 
-        
+        # Local server config
         self.runLocalCheck.setChecked(True)
-        
         self.appPathLine.setText("virtughan_qgis.tiler.api:app")
-
         if not self.hostLine.text():
             self.hostLine.setText("127.0.0.1")
         if self.portSpin.value() == 0:
             self.portSpin.setRange(1, 65535)
-            self.portSpin.setValue(8002)  
+            self.portSpin.setValue(8002)
         if self.workersSpin.value() == 0:
             self.workersSpin.setRange(1, 64)
             self.workersSpin.setValue(1)
@@ -275,7 +268,6 @@ class TilerWidget(QWidget, FORM_CLASS):
 
     def _apply_localserver_visibility(self):
         enabled = self.runLocalCheck.isChecked()
-        running = False
         try:
             running = self.server.is_running()
         except Exception:
@@ -284,24 +276,49 @@ class TilerWidget(QWidget, FORM_CLASS):
         self.stopServerBtn.setEnabled(enabled and running)
         if enabled:
             host = (self.hostLine.text().strip() or "127.0.0.1")
-            
             bound_port = getattr(self.server, "_bound_port", None)
             port = bound_port if bound_port else int(self.portSpin.value())
             self.backendUrlLine.setText(f"http://{host}:{port}")
 
-    
     def _on_help(self):
         QMessageBox.information(
             self,
             "VirtuGhan Tiler",
             "Adds an XYZ layer rendered by your local FastAPI server.\n\n"
             "• App Path defaults to virtughan_qgis.tiler.api:app (embedded).\n"
-            "• Set NDVI defaults (red/nir and formula) or choose visual/index.\n"
+            "• Defaults (dates, cloud, bands, formula) are pulled from the common module when available.\n"
             "• Optional: enable Time series and choose an aggregation.\n"
             "• Workers are forced to 1 in-process.",
         )
 
+    def _remove_tiler_layers(self):
+        """Remove the tiler layer(s) from the project."""
+        prj = QgsProject.instance()
+        to_remove = []
+
+        # 1) If we remembered the layer id, remove that first.
+        if getattr(self, "_tiler_layer_id", None):
+            to_remove.append(self._tiler_layer_id)
+            self._tiler_layer_id = None
+
+        # 2) Fallback: find any layer that looks like our Tiler source or name.
+        want_name = (self.layerNameLine.text().strip() or "VirtuGhan Tiler")
+        for lyr in prj.mapLayers().values():
+            try:
+                src = getattr(lyr, "source", lambda: "")() or ""
+                if "/tile/{z}/{x}/{y}" in src or lyr.name() == want_name:
+                    if lyr.id() not in to_remove:
+                        to_remove.append(lyr.id())
+            except Exception:
+                pass
+
+        if to_remove:
+            prj.removeMapLayers(to_remove)
+
     def _on_reset(self):
+        # remove any added tiler layers
+        self._remove_tiler_layers()
+        # re-init defaults and UI
         self._init_defaults()
         self._apply_timeseries_visibility()
         self._apply_localserver_visibility()
@@ -330,13 +347,12 @@ class TilerWidget(QWidget, FORM_CLASS):
 
     def _on_start_server(self):
         try:
-            app_path = self.appPathLine.text().strip()  
+            app_path = self.appPathLine.text().strip()
             host = self.hostLine.text().strip() or "127.0.0.1"
             requested_port = int(self.portSpin.value() or 8002)
 
             if not self.server.is_running():
                 self.server.start(app_path=app_path, host=host, port=requested_port, workers=1)
-                
                 bound_port = getattr(self.server, "_bound_port", requested_port)
                 if bound_port != requested_port:
                     self.portSpin.setValue(bound_port)
@@ -377,6 +393,7 @@ class TilerWidget(QWidget, FORM_CLASS):
                 operation=operation,
             )
             layer = self.logic.add_xyz_layer(backend_url, layer_name, params)
+            self._tiler_layer_id = layer.id()   # remember the exact layer we just added
             self._log(f"Added layer '{layer_name}' with source: {layer.source()}")
             QMessageBox.information(self, "Layer Added", f"'{layer_name}' added successfully.")
         except Exception as e:

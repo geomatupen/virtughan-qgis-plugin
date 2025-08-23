@@ -73,16 +73,12 @@
             <item><property name="text"><string>green</string></property></item>
             <item><property name="text"><string>blue</string></property></item>
             <item><property name="text"><string>nir</string></property></item>
+            <item><property name="text"><string>nir08</string></property></item>
+            <item><property name="text"><string>swir16</string></property></item>
             <item><property name="text"><string>swir22</string></property></item>
+            <item><property name="text"><string>rededge1</string></property></item>
             <item><property name="text"><string>rededge2</string></property></item>
             <item><property name="text"><string>rededge3</string></property></item>
-            <item><property name="text"><string>rededge1</string></property></item>
-            <item><property name="text"><string>swir16</string></property></item>
-            <item><property name="text"><string>wvp</string></property></item>
-            <item><property name="text"><string>nir08</string></property></item>
-            <item><property name="text"><string>aot</string></property></item>
-            <item><property name="text"><string>coastal</string></property></item>
-            <item><property name="text"><string>nir09</string></property></item>
            </widget>
           </item>
 

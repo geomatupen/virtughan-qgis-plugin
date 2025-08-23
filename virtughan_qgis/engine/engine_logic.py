@@ -1,4 +1,3 @@
-# virtughan_qgis/engine/engine_logic.py
 import os, uuid, io, traceback
 from contextlib import redirect_stdout, redirect_stderr
 
