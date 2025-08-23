@@ -192,7 +192,7 @@ class EngineDockWidget(QDockWidget):
 
         self.aoiModeCombo       = f(QComboBox,     "aoiModeCombo")
         self.aoiUseCanvasButton = f(QPushButton,   "aoiUseCanvasButton")
-        self.aoiStartDrawButton = f(QPushButton,   "aoiStartDrawButton")   # single action button for all modes
+        self.aoiStartDrawButton = f(QPushButton,   "aoiStartDrawButton")  
         self.aoiClearButton     = f(QPushButton,   "aoiClearButton")
         self.aoiPreviewLabel    = f(QLabel,        "aoiPreviewLabel")
 
@@ -221,19 +221,16 @@ class EngineDockWidget(QDockWidget):
                 f"Make sure engine_form.ui names match the code."
             )
 
-        # ---- Common widget
         self._init_common_widget()
 
-        # ---- Defaults
         self.progressBar.setVisible(False)
         self.workersSpin.setMinimum(1)
         if self.workersSpin.value() < 1:
             self.workersSpin.setValue(1)
 
-        # ---- AOI unified UX
         self._aoi_bbox = None
-        self._aoi = AoiManager(self.iface)   # <<<<<<<<<<<<<<  reusable AOI manager
-        self._prev_tool = None               # remember previous map tool
+        self._aoi = AoiManager(self.iface)   
+        self._prev_tool = None               
 
         # Convert dropdown to 3 options at runtime (no .ui change required)
         self.aoiModeCombo.clear()
@@ -242,8 +239,7 @@ class EngineDockWidget(QDockWidget):
         # Use a single action button; hide the separate 'Use Canvas Extent' button
         self.aoiUseCanvasButton.setVisible(False)
 
-        # Wire buttons
-        self.aoiStartDrawButton.clicked.connect(self._aoi_action_clicked)  # unified handler
+        self.aoiStartDrawButton.clicked.connect(self._aoi_action_clicked)
         self.aoiClearButton.clicked.connect(self._clear_aoi)
         self.aoiModeCombo.currentTextChanged.connect(self._aoi_mode_changed)
 
@@ -256,14 +252,10 @@ class EngineDockWidget(QDockWidget):
         self._update_aoi_preview()
         self._aoi_mode_changed(self.aoiModeCombo.currentText())
 
-        # Tailer / task state
         self._tailer = None
         self._current_task = None
         self._current_log_path = None
 
-    # -------------------------
-    # Common params
-    # -------------------------
     def _init_common_widget(self):
         host = self.commonHost
         v = QVBoxLayout(host); v.setContentsMargins(0, 0, 0, 0)
@@ -274,7 +266,7 @@ class EngineDockWidget(QDockWidget):
                 self._common.set_defaults(
                     start_date=QDate.currentDate().addMonths(-1),
                     end_date=QDate.currentDate(),
-                    cloud=30,
+                    cloud=60,
                     band1="red",
                     band2="nir",
                     formula="(band2-band1)/(band2+band1)",
@@ -525,7 +517,6 @@ class EngineDockWidget(QDockWidget):
             output_dir=out_dir,
         )
 
-    #  log tailer
     def _start_tailing(self, log_path: str):
         self._current_log_path = log_path
         self._tailer = _UiLogTailer(log_path, self.logText, interval_ms=400)
@@ -537,7 +528,6 @@ class EngineDockWidget(QDockWidget):
             self._tailer = None
         self._current_log_path = None
 
-    # run clicked
     def _run_clicked(self):
         try:
             params = self._collect_params()
